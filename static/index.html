@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Sampa Volleyball League</title>
+<link rel="icon" type="image/jpeg" href="/static/logo.jpeg">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Barlow:wght@300;400;500;600;700&family=Barlow+Condensed:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--red:#E31B23;--red-dark:#B71518;--black:#1A1A1A;--black-deep:#0D0D0D;--white:#FFFFFF;--g50:#F7F7F8;--g100:#EBEBED;--g200:#D4D4D8;--g300:#A1A1AA;--g400:#71717A;--g500:#52525B;--g600:#3F3F46;--g700:#27272A;--radius:12px;--radius-sm:8px;--radius-xs:6px}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Barlow',sans-serif;background:var(--g50);color:var(--black);min-height:100vh;overflow-x:hidden}
+.header{background:var(--black-deep);color:var(--white);position:sticky;top:0;z-index:100;box-shadow:0 2px 20px rgba(0,0,0,.4)}
+.header-top{display:flex;align-items:center;justify-content:center;gap:14px;padding:12px 16px 8px}
+.header-logo{width:48px;height:48px;border-radius:50%;object-fit:cover;border:2px solid var(--red)}
+.header-title{font-family:'Oswald',sans-serif;font-weight:700;font-size:1.3rem;letter-spacing:2px;text-transform:uppercase;line-height:1.1}
+.header-title span{color:var(--red)}
+.naipe-tabs{display:flex;padding:0 16px}
+.naipe-tab{flex:1;padding:10px;text-align:center;font-family:'Oswald',sans-serif;font-weight:600;font-size:.95rem;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;border:none;background:transparent;color:var(--g300);border-bottom:3px solid transparent;transition:all .2s}
+.naipe-tab.active{color:var(--white);border-bottom-color:var(--red)}
+.nav-bar{background:var(--white);border-bottom:1px solid var(--g100);display:flex;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:0 8px;position:sticky;top:96px;z-index:90;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.nav-bar::-webkit-scrollbar{display:none}
+.nav-tab{flex-shrink:0;padding:12px 14px;font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:.82rem;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;border:none;background:transparent;color:var(--g400);border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap}
+.nav-tab.active{color:var(--red);border-bottom-color:var(--red)}
+.main{max-width:900px;margin:0 auto;padding:16px;padding-bottom:80px}
+.section{display:none}.section.active{display:block}
+.hero{text-align:center;padding:28px 16px 20px}
+.hero-logo{width:150px;filter:drop-shadow(0 4px 12px rgba(0,0,0,.2))}
+.hero-subtitle{font-family:'Barlow Condensed',sans-serif;font-weight:500;color:var(--g400);font-size:.95rem;letter-spacing:2px;text-transform:uppercase;margin-top:8px}
+.card{background:var(--white);border-radius:var(--radius);box-shadow:0 1px 3px rgba(0,0,0,.08);padding:18px;margin-bottom:12px;border:1px solid var(--g100)}
+.card-title{font-family:'Oswald',sans-serif;font-weight:600;font-size:1.05rem;letter-spacing:.5px;text-transform:uppercase}
+.section-title{font-family:'Oswald',sans-serif;font-weight:700;font-size:1.15rem;letter-spacing:1px;text-transform:uppercase;margin-bottom:16px;display:flex;align-items:center;gap:10px}
+.section-title::before{content:'';width:4px;height:24px;background:var(--red);border-radius:2px}
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:600;letter-spacing:.5px;text-transform:uppercase;font-family:'Barlow Condensed',sans-serif}
+.badge-red{background:var(--red);color:white}.badge-black{background:var(--black);color:white}.badge-gray{background:var(--g100);color:var(--g500)}.badge-green{background:#16a34a;color:white}
+.form-group{margin-bottom:14px}
+.form-label{display:block;font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:.78rem;letter-spacing:1px;text-transform:uppercase;color:var(--g400);margin-bottom:5px}
+.form-input,.form-select{width:100%;padding:10px 14px;border:2px solid var(--g200);border-radius:var(--radius-xs);font-family:'Barlow',sans-serif;font-size:.95rem;background:var(--white);color:var(--black);transition:border-color .2s}
+.form-input:focus,.form-select:focus{outline:none;border-color:var(--red)}
+.form-select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23999' d='M6 8L1 3h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 20px;border:none;border-radius:var(--radius-xs);font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:.85rem;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:all .2s;white-space:nowrap}
+.btn-red{background:var(--red);color:white}.btn-red:hover{background:var(--red-dark)}.btn-red:disabled{background:var(--g300);cursor:not-allowed}
+.btn-black{background:var(--black);color:white}.btn-black:hover{background:var(--black-deep)}
+.btn-outline{background:transparent;border:2px solid var(--g200);color:var(--g500)}.btn-outline:hover{border-color:var(--red);color:var(--red)}
+.btn-sm{padding:6px 12px;font-size:.75rem}
+.btn-danger{background:transparent;border:1px solid #fca5a5;color:#dc2626}.btn-danger:hover{background:#fef2f2}
+.btn-full{width:100%}
+.table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -18px;padding:0 18px}
+table{width:100%;border-collapse:collapse;font-size:.85rem}
+th{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:.72rem;letter-spacing:1px;text-transform:uppercase;color:var(--g400);padding:8px 8px;text-align:left;border-bottom:2px solid var(--g100);white-space:nowrap}
+td{padding:10px 8px;border-bottom:1px solid var(--g100);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+.pos-1{color:var(--red);font-weight:700}.pos-2{color:var(--red-dark);font-weight:600}
+.match-card{background:var(--white);border-radius:var(--radius-sm);padding:14px;margin-bottom:10px;border:1px solid var(--g100);box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.match-fase{font-family:'Barlow Condensed',sans-serif;font-size:.68rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--g300);margin-bottom:8px}
+.match-teams{display:flex;align-items:center;gap:10px}
+.match-team{flex:1;font-family:'Oswald',sans-serif;font-weight:500;font-size:.92rem;text-transform:uppercase}.match-team.right{text-align:right}
+.match-score{display:flex;align-items:center;gap:6px;font-family:'Oswald',sans-serif;font-weight:700;font-size:1.3rem}
+.match-score .vs{font-size:.7rem;color:var(--g300);font-weight:400}
+.match-done{border-left:3px solid #16a34a}.match-pending{border-left:3px solid var(--g200)}
+.etapa-date{flex-shrink:0;width:56px;text-align:center;background:var(--red);color:white;border-radius:var(--radius-xs);padding:8px 4px;font-family:'Oswald',sans-serif}
+.etapa-date .day{font-size:1.4rem;font-weight:700;line-height:1}
+.etapa-date .month{font-size:.65rem;font-weight:500;letter-spacing:1px;text-transform:uppercase;margin-top:2px}
+.grupo-container{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+@media(max-width:500px){.grupo-container{grid-template-columns:1fr}}
+.grupo-card{background:var(--white);border-radius:var(--radius-sm);border:1px solid var(--g100);overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.grupo-header{background:var(--black);color:var(--white);padding:10px 14px;font-family:'Oswald',sans-serif;font-weight:600;font-size:.9rem;letter-spacing:1.5px;text-transform:uppercase}
+.grupo-item{display:flex;align-items:center;gap:8px;padding:8px 14px;font-size:.9rem;border-bottom:1px solid var(--g100)}.grupo-item:last-child{border-bottom:none}
+.modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:200;align-items:flex-end;justify-content:center;backdrop-filter:blur(4px)}
+.modal-overlay.active{display:flex}
+.modal{background:var(--white);border-radius:var(--radius) var(--radius) 0 0;width:100%;max-width:500px;max-height:80vh;overflow-y:auto;padding:24px;animation:slideUp .3s ease}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+@media(min-width:600px){.modal-overlay{align-items:center}.modal{border-radius:var(--radius);max-height:85vh}}
+.modal-title{font-family:'Oswald',sans-serif;font-weight:700;font-size:1.15rem;letter-spacing:1px;text-transform:uppercase;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between}
+.modal-close{background:none;border:none;font-size:1.5rem;cursor:pointer;color:var(--g400);line-height:1}
+.score-input{width:50px;padding:8px;text-align:center;font-family:'Oswald',sans-serif;font-weight:700;font-size:1.2rem;border:2px solid var(--g200);border-radius:var(--radius-xs)}
+.score-input:focus{outline:none;border-color:var(--red)}
+.fab{position:fixed;bottom:20px;right:20px;width:56px;height:56px;border-radius:50%;background:var(--red);color:white;border:none;font-size:1.5rem;cursor:pointer;box-shadow:0 8px 30px rgba(0,0,0,.25);z-index:80;display:flex;align-items:center;justify-content:center;transition:all .2s}
+.fab:hover{background:var(--red-dark);transform:scale(1.05)}.fab.admin-active{background:var(--black)}
+.empty-state{text-align:center;padding:40px 20px;color:var(--g300)}.empty-state .icon{font-size:2.5rem;margin-bottom:12px}
+.empty-state p{font-family:'Barlow Condensed',sans-serif;font-size:.9rem;letter-spacing:.5px;text-transform:uppercase}
+.watermark{position:fixed;bottom:20px;left:20px;width:60px;opacity:.06;pointer-events:none;z-index:1}
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(100px);background:var(--black);color:white;padding:12px 24px;border-radius:var(--radius-xs);font-family:'Barlow Condensed',sans-serif;font-weight:500;font-size:.9rem;z-index:300;opacity:0;transition:all .3s;box-shadow:0 8px 30px rgba(0,0,0,.25)}.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.admin-bar{display:none;background:var(--black);color:var(--red);text-align:center;padding:6px;font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:.75rem;letter-spacing:2px;text-transform:uppercase}.admin-bar.active{display:block}
+.parciais-row{display:flex;gap:6px;margin-top:6px;justify-content:center}
+.parcial-badge{font-family:'Barlow Condensed',sans-serif;font-size:.7rem;font-weight:600;background:var(--g100);padding:2px 8px;border-radius:10px;color:var(--g500)}
+/* Próxima etapa card */
+.next-card{background:linear-gradient(135deg,#1a1a1a 0%,#2d2d2d 100%);color:white;border:none;border-radius:var(--radius);padding:20px;margin-bottom:12px;position:relative;overflow:hidden}
+.next-card::after{content:'';position:absolute;top:0;right:0;width:80px;height:100%;background:var(--red);clip-path:polygon(30% 0,100% 0,100% 100%,0 100%);opacity:.9}
+.next-badge{position:relative;z-index:2}
+.cat-badge{display:inline-block;background:var(--red);color:white;padding:4px 12px;border-radius:20px;font-family:'Oswald',sans-serif;font-weight:600;font-size:.85rem;letter-spacing:1px}
+.btn-inscreva{background:var(--red);color:white;border:none;padding:12px 28px;border-radius:var(--radius-xs);font-family:'Oswald',sans-serif;font-weight:600;font-size:.95rem;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;margin-top:14px;display:inline-flex;align-items:center;gap:8px;transition:all .2s;position:relative;z-index:2}
+.btn-inscreva:hover{background:var(--red-dark);transform:translateY(-1px)}
+/* Regulamento */
+.regulamento-content{font-size:.9rem;line-height:1.7;color:var(--g500);white-space:pre-wrap}
+.regulamento-content h1,.regulamento-content h2,.regulamento-content h3{font-family:'Oswald',sans-serif;color:var(--black);margin:16px 0 8px;text-transform:uppercase}
+/* Atleta list */
+.atleta-item{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--g100);font-size:.85rem}
+.atleta-item:last-child{border-bottom:none}
+.atleta-num{font-family:'Oswald',sans-serif;font-weight:700;color:var(--red);width:24px}
+/* Step indicator */
+.steps{display:flex;gap:0;margin-bottom:20px}
+.step{flex:1;text-align:center;padding:10px 8px;font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:.75rem;letter-spacing:1px;text-transform:uppercase;border-bottom:3px solid var(--g200);color:var(--g300);cursor:pointer;transition:all .2s}
+.step.active{border-bottom-color:var(--red);color:var(--red)}
+.step.done{border-bottom-color:#16a34a;color:#16a34a}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.fade-in{animation:fadeIn .3s ease}
+@media(max-width:400px){.header-title{font-size:1.1rem}.hero-logo{width:120px}.main{padding:10px}.card{padding:14px}.btn{padding:8px 14px;font-size:.8rem}}
+</style>
+</head>
+<body>
+<header class="header">
+<div class="header-top"><img src="/static/logo.jpeg" class="header-logo" alt="SVL"><div class="header-title">Sampa Volleyball<br><span>League</span></div></div>
+<div class="naipe-tabs">
+<button class="naipe-tab active" onclick="switchNaipe('masculino')">🏐 Masculino</button>
+<button class="naipe-tab" onclick="switchNaipe('feminino')">🏐 Feminino</button>
+</div>
+</header>
+<div class="admin-bar" id="adminBar">⚙ Modo Admin Ativo</div>
+<nav class="nav-bar">
+<button class="nav-tab active" data-sec="inicio" onclick="switchSection('inicio')">Início</button>
+<button class="nav-tab" data-sec="etapas" onclick="switchSection('etapas')">Etapas</button>
+<button class="nav-tab" data-sec="inscricao" onclick="switchSection('inscricao')">Inscrição</button>
+<button class="nav-tab" data-sec="equipes" onclick="switchSection('equipes')">Equipes</button>
+<button class="nav-tab" data-sec="grupos" onclick="switchSection('grupos')">Grupos</button>
+<button class="nav-tab" data-sec="jogos" onclick="switchSection('jogos')">Jogos</button>
+<button class="nav-tab" data-sec="classificacao" onclick="switchSection('classificacao')">Classificação</button>
+<button class="nav-tab" data-sec="regulamento" onclick="switchSection('regulamento')">Regulamento</button>
+</nav>
+
+<div class="main">
+<!-- INICIO -->
+<div class="section active" id="sec-inicio">
+<div class="hero"><img src="/static/logo.jpeg" class="hero-logo" alt="SVL"><div class="hero-subtitle">Temporada 2026</div></div>
+<div id="nextEtapaCard"></div>
+<div class="card">
+<div class="card-title" style="margin-bottom:10px">Sobre o Torneio</div>
+<p style="font-size:.88rem;color:var(--g500);line-height:1.6">A Sampa Volleyball League é dividida em <strong>etapas</strong>, cada uma com local e data próprios. Até <strong>8 equipes por naipe</strong> (masculino e feminino) se inscrevem e são sorteadas em <strong>2 grupos de 4</strong>. Após a fase de grupos, os dois melhores de cada chave avançam para o <strong>cruzamento olímpico</strong> (semifinais, disputa de 3º e final).</p>
+</div>
+</div>
+
+<!-- ETAPAS -->
+<div class="section" id="sec-etapas">
+<div class="section-title">Etapas</div>
+<div id="etapasList"></div>
+<div id="etapaForm" style="display:none" class="card fade-in">
+<div class="card-title" style="margin-bottom:14px">Nova Etapa</div>
+<div class="form-group"><label class="form-label">Nome</label><input class="form-input" id="etapaNome" placeholder="Ex: 1º Volley Fast"></div>
+<div class="form-group"><label class="form-label">Local</label><input class="form-input" id="etapaLocal" placeholder="Ex: S.P.F.C."></div>
+<div class="form-group"><label class="form-label">Endereço</label><input class="form-input" id="etapaEndereco" placeholder="Rua, número, bairro"></div>
+<div class="form-group"><label class="form-label">Data</label><input class="form-input" id="etapaData" type="date"></div>
+<div class="form-group"><label class="form-label">Categoria</label><input class="form-input" id="etapaCat" placeholder="Ex: 30+"></div>
+<div class="form-group"><label class="form-label">Formato</label><input class="form-input" id="etapaFormato" placeholder="Ex: Hexagonal"></div>
+<button class="btn btn-red btn-full" onclick="addEtapa()">Cadastrar Etapa</button>
+</div>
+</div>
+
+<!-- INSCRICAO -->
+<div class="section" id="sec-inscricao">
+<div class="section-title">Inscrição</div>
+<div id="inscricaoStatus"></div>
+<div class="steps" id="inscSteps">
+<div class="step active" data-step="equipe">1. Equipe</div>
+<div class="step" data-step="atletas">2. Atletas</div>
+</div>
+<!-- Step 1: Equipe -->
+<div id="stepEquipe" class="card fade-in">
+<div class="card-title" style="margin-bottom:14px">Cadastrar Equipe — <span id="inscNaipe">Masculino</span></div>
+<div class="form-group"><label class="form-label">Nome da Equipe</label><input class="form-input" id="eqNome" placeholder="Nome da equipe"></div>
+<div class="form-group"><label class="form-label">Responsável</label><input class="form-input" id="eqResp" placeholder="Nome do responsável"></div>
+<div class="form-group"><label class="form-label">Telefone</label><input class="form-input" id="eqTel" placeholder="(11) 99999-9999"></div>
+<button class="btn btn-red btn-full" onclick="inscreverEquipe()">Inscrever e Cadastrar Atletas →</button>
+</div>
+<!-- Step 2: Atletas -->
+<div id="stepAtletas" style="display:none">
+<div class="card fade-in">
+<div class="card-title" style="margin-bottom:4px">Equipe: <span id="atletaEquipeNome"></span></div>
+<p style="font-size:.8rem;color:var(--g400);margin-bottom:14px">Cadastre os atletas (obrigatório para participar)</p>
+<div class="form-group"><label class="form-label">Nome Completo</label><input class="form-input" id="atlNome" placeholder="Nome completo do atleta"></div>
+<div class="form-group"><label class="form-label">Data de Nascimento</label><input class="form-input" id="atlNasc" type="date"></div>
+<div style="display:flex;gap:8px">
+<div class="form-group" style="flex:1"><label class="form-label">Documento</label>
+<select class="form-input form-select" id="atlTipoDoc"><option value="RG">RG</option><option value="CPF">CPF</option><option value="CNH">CNH</option></select></div>
+<div class="form-group" style="flex:2"><label class="form-label">Número</label><input class="form-input" id="atlNumDoc" placeholder="Nº do documento"></div>
+</div>
+<button class="btn btn-red btn-full" onclick="addAtleta()">+ Adicionar Atleta</button>
+</div>
+<div id="atletasList" style="margin-top:12px"></div>
+<div style="display:flex;gap:8px;margin-top:12px">
+<button class="btn btn-outline" style="flex:1" onclick="voltarEquipe()">← Voltar</button>
+<button class="btn btn-black" style="flex:1" onclick="finalizarInscricao()">Finalizar Inscrição</button>
+</div>
+</div>
+</div>
+
+<!-- EQUIPES -->
+<div class="section" id="sec-equipes">
+<div class="section-title">Equipes Inscritas</div>
+<div id="equipesCount" style="margin-bottom:12px"></div>
+<div id="equipesList"></div>
+</div>
+
+<!-- GRUPOS -->
+<div class="section" id="sec-grupos">
+<div class="section-title">Chaves</div>
+<div id="gruposActions" style="display:none;margin-bottom:12px"><button class="btn btn-black" onclick="sortearGrupos()">🎲 Sortear Grupos</button></div>
+<div class="grupo-container" id="gruposDisplay"></div>
+</div>
+
+<!-- JOGOS -->
+<div class="section" id="sec-jogos">
+<div class="section-title">Jogos</div>
+<div id="jogosActions" style="display:none;margin-bottom:12px"><button class="btn btn-black" onclick="gerarJogos()">⚡ Gerar Tabela de Jogos</button></div>
+<div id="jogosFaseGrupos"></div>
+<div id="jogosFaseElim"></div>
+</div>
+
+<!-- CLASSIFICACAO -->
+<div class="section" id="sec-classificacao">
+<div class="section-title">Classificação</div>
+<div id="classGrupoA"></div><div style="height:16px"></div><div id="classGrupoB"></div>
+</div>
+
+<!-- REGULAMENTO -->
+<div class="section" id="sec-regulamento">
+<div class="section-title">Regulamento</div>
+<div id="regulamentoView"></div>
+<div id="regulamentoEdit" style="display:none" class="card">
+<div class="card-title" style="margin-bottom:10px">Editar Regulamento</div>
+<textarea class="form-input" id="regulamentoText" rows="15" style="font-size:.85rem;line-height:1.6;resize:vertical" placeholder="Cole o regulamento aqui..."></textarea>
+<button class="btn btn-red btn-full" style="margin-top:10px" onclick="salvarRegulamento()">Salvar Regulamento</button>
+</div>
+</div>
+</div>
+
+<button class="fab" id="fabAdmin" onclick="toggleAdmin()">🔒</button>
+<img src="/static/logo.jpeg" class="watermark" alt="">
+<div class="toast" id="toast"></div>
+
+<!-- Modals -->
+<div class="modal-overlay" id="adminLoginModal">
+<div class="modal">
+<div class="modal-title">Acesso Admin<button class="modal-close" onclick="closeModal('adminLoginModal')">&times;</button></div>
+<div class="form-group"><label class="form-label">Senha</label><input class="form-input" id="adminPass" type="password" placeholder="Senha" onkeypress="if(event.key==='Enter')doLogin()"></div>
+<button class="btn btn-red btn-full" onclick="doLogin()">Entrar</button>
+</div>
+</div>
+<div class="modal-overlay" id="scoreModal">
+<div class="modal"><div class="modal-title">Editar Placar<button class="modal-close" onclick="closeModal('scoreModal')">&times;</button></div><div id="scoreModalBody"></div></div>
+</div>
+<div class="modal-overlay" id="atletasModal">
+<div class="modal"><div class="modal-title">Atletas da Equipe<button class="modal-close" onclick="closeModal('atletasModal')">&times;</button></div><div id="atletasModalBody"></div></div>
+</div>
+
+<script>
+let currentNaipe='masculino',currentSection='inicio',isAdmin=false;
+let allEquipes={masculino:[],feminino:[]},allGrupos={masculino:{A:[],B:[]},feminino:{A:[],B:[]}};
+let allJogos={masculino:[],feminino:[]};
+let currentInscEquipeId=null,currentInscEquipeNome='';
+
+async function api(path,method='GET',body=null){
+const o={method,headers:{'Content-Type':'application/json'}};
+if(body)o.body=JSON.stringify(body);
+const r=await fetch('/api'+path,o);return r.json();
+}
+function showToast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500)}
+function openModal(id){document.getElementById(id).classList.add('active')}
+function closeModal(id){document.getElementById(id).classList.remove('active')}
+
+function switchNaipe(n){
+currentNaipe=n;
+document.querySelectorAll('.naipe-tab').forEach(t=>t.classList.remove('active'));
+document.querySelectorAll('.naipe-tab').forEach(t=>{if(t.textContent.toLowerCase().includes(n.substring(0,3)))t.classList.add('active')});
+document.getElementById('inscNaipe').textContent=n==='masculino'?'Masculino':'Feminino';
+refreshAll();
+}
+function switchSection(s){
+currentSection=s;
+document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+document.querySelector(`.nav-tab[data-sec="${s}"]`)?.classList.add('active');
+document.querySelectorAll('.section').forEach(x=>x.classList.remove('active'));
+document.getElementById('sec-'+s)?.classList.add('active');
+refreshSection(s);
+}
+
+function toggleAdmin(){
+if(isAdmin){isAdmin=false;document.getElementById('fabAdmin').textContent='🔒';document.getElementById('fabAdmin').classList.remove('admin-active');document.getElementById('adminBar').classList.remove('active');showToast('Admin desativado');refreshAll()}
+else{openModal('adminLoginModal');document.getElementById('adminPass').focus()}
+}
+async function doLogin(){
+const r=await api('/auth','POST',{password:document.getElementById('adminPass').value});
+if(r.ok){isAdmin=true;closeModal('adminLoginModal');document.getElementById('fabAdmin').textContent='⚙';document.getElementById('fabAdmin').classList.add('admin-active');document.getElementById('adminBar').classList.add('active');document.getElementById('adminPass').value='';showToast('Modo admin ativado!');refreshAll()}
+else showToast('Senha incorreta');
+}
+
+function getEquipeName(id){const all=[...allEquipes.masculino,...allEquipes.feminino];return all.find(e=>e.id===id)?.nome||(id?'???':'A definir')}
+
+async function refreshAll(){
+allEquipes[currentNaipe]=await api('/equipes/'+currentNaipe);
+allGrupos[currentNaipe]=await api('/grupos/'+currentNaipe);
+allJogos[currentNaipe]=await api('/jogos/'+currentNaipe);
+refreshSection(currentSection);
+}
+function refreshSection(s){
+if(s==='inicio')renderInicio();if(s==='etapas')renderEtapas();if(s==='inscricao')renderInscricao();
+if(s==='equipes')renderEquipes();if(s==='grupos')renderGrupos();if(s==='jogos')renderJogos();
+if(s==='classificacao')renderClassificacao();if(s==='regulamento')renderRegulamento();
+}
+
+function formatDate(d){if(!d)return{day:'--',month:'--'};const dt=new Date(d+'T12:00:00');return{day:dt.getDate(),month:dt.toLocaleString('pt-BR',{month:'short'}).toUpperCase()}}
+
+// === INICIO ===
+async function renderInicio(){
+const etapas=await api('/etapas/'+currentNaipe);
+const c=document.getElementById('nextEtapaCard');
+if(!etapas.length){c.innerHTML='';return}
+const sorted=[...etapas].sort((a,b)=>a.data.localeCompare(b.data));
+const next=sorted.find(e=>e.data>=new Date().toISOString().split('T')[0])||sorted[sorted.length-1];
+const d=formatDate(next.data);
+c.innerHTML=`
+<div class="next-card">
+<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:12px">
+<div style="font-family:'Oswald',sans-serif;font-weight:700;font-size:.95rem;letter-spacing:1.5px;text-transform:uppercase">Próxima Etapa</div>
+<div class="next-badge"><span class="badge badge-red">${currentNaipe}</span></div>
+</div>
+<div style="display:flex;gap:14px;align-items:flex-start">
+<div class="etapa-date"><div class="day">${d.day}</div><div class="month">${d.month}</div></div>
+<div style="flex:1;position:relative;z-index:2">
+<div style="font-family:'Oswald',sans-serif;font-weight:600;font-size:1.1rem;text-transform:uppercase;letter-spacing:.5px">${next.nome}</div>
+<div style="font-size:.85rem;opacity:.8;margin-top:2px">📍 ${next.local}</div>
+${next.endereco?`<div style="font-size:.78rem;opacity:.6">${next.endereco}</div>`:''}
+<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+${next.categoria?`<span class="cat-badge">${next.categoria}</span>`:''}
+${next.formato?`<span class="cat-badge" style="background:var(--black)">${next.formato}</span>`:''}
+</div>
+<button class="btn-inscreva" onclick="switchSection('inscricao')">🏐 Inscreva-se!</button>
+</div>
+</div>
+</div>`;
+}
+
+// === ETAPAS ===
+async function renderEtapas(){
+const etapas=await api('/etapas/'+currentNaipe);
+const list=document.getElementById('etapasList');
+document.getElementById('etapaForm').style.display=isAdmin?'block':'none';
+if(!etapas.length){list.innerHTML='<div class="empty-state"><div class="icon">📅</div><p>Nenhuma etapa cadastrada</p></div>';return}
+list.innerHTML=etapas.map(e=>{const d=formatDate(e.data);return`
+<div class="card fade-in" style="display:flex;gap:12px;align-items:flex-start">
+<div class="etapa-date"><div class="day">${d.day}</div><div class="month">${d.month}</div></div>
+<div style="flex:1"><h3 style="font-family:'Oswald';font-weight:600;text-transform:uppercase;font-size:1rem">${e.nome}</h3>
+<p style="font-size:.85rem;color:var(--g400)">📍 ${e.local}</p>
+${e.endereco?`<p style="font-size:.78rem;color:var(--g300)">${e.endereco}</p>`:''}
+<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+${e.categoria?`<span class="badge badge-red">${e.categoria}</span>`:''}
+${e.formato?`<span class="badge badge-black">${e.formato}</span>`:''}
+</div></div>
+${isAdmin?`<button class="btn btn-danger btn-sm" onclick="deleteEtapa('${e.id}')">✕</button>`:''}</div>`}).join('');
+}
+async function addEtapa(){
+const nome=document.getElementById('etapaNome').value.trim(),local=document.getElementById('etapaLocal').value.trim();
+const endereco=document.getElementById('etapaEndereco').value.trim(),data=document.getElementById('etapaData').value;
+const categoria=document.getElementById('etapaCat').value.trim(),formato=document.getElementById('etapaFormato').value.trim();
+if(!nome||!local||!data){showToast('Preencha nome, local e data');return}
+await api('/etapas/'+currentNaipe,'POST',{nome,local,endereco,data,categoria,formato});
+['etapaNome','etapaLocal','etapaEndereco','etapaData','etapaCat','etapaFormato'].forEach(id=>document.getElementById(id).value='');
+showToast('Etapa cadastrada!');renderEtapas();
+}
+async function deleteEtapa(id){if(!confirm('Remover etapa?'))return;await api('/etapas/'+currentNaipe+'/'+id,'DELETE');showToast('Removida');renderEtapas()}
+
+// === INSCRICAO ===
+function renderInscricao(){
+const eq=allEquipes[currentNaipe];const st=document.getElementById('inscricaoStatus');
+const count=eq.length;
+st.innerHTML=`<div style="margin-bottom:12px;font-size:.82rem;color:var(--g400)">${count}/8 vagas preenchidas
+<div style="background:var(--g100);border-radius:20px;height:8px;margin-top:5px;overflow:hidden">
+<div style="background:var(--red);height:100%;width:${(count/8)*100}%;border-radius:20px;transition:width .3s"></div></div></div>`;
+if(count>=8){st.innerHTML+=`<div class="card" style="text-align:center;color:var(--red);font-weight:600">Inscrições encerradas — 8 equipes!</div>`;
+document.getElementById('stepEquipe').style.display='none';document.getElementById('stepAtletas').style.display='none';document.getElementById('inscSteps').style.display='none'}
+else{document.getElementById('inscSteps').style.display='flex';if(!currentInscEquipeId){showStepEquipe()}}}
+
+function showStepEquipe(){
+document.getElementById('stepEquipe').style.display='block';document.getElementById('stepAtletas').style.display='none';
+document.querySelectorAll('.step').forEach(s=>s.classList.remove('active','done'));
+document.querySelector('.step[data-step="equipe"]').classList.add('active');
+}
+function showStepAtletas(){
+document.getElementById('stepEquipe').style.display='none';document.getElementById('stepAtletas').style.display='block';
+document.querySelector('.step[data-step="equipe"]').classList.remove('active');document.querySelector('.step[data-step="equipe"]').classList.add('done');
+document.querySelector('.step[data-step="atletas"]').classList.add('active');
+}
+
+async function inscreverEquipe(){
+const nome=document.getElementById('eqNome').value.trim(),resp=document.getElementById('eqResp').value.trim(),tel=document.getElementById('eqTel').value.trim();
+if(!nome||!resp){showToast('Preencha nome e responsável');return}
+const res=await api('/equipes/'+currentNaipe,'POST',{nome,responsavel:resp,telefone:tel});
+if(res.error){showToast(res.error);return}
+currentInscEquipeId=res.id;currentInscEquipeNome=res.nome;
+document.getElementById('atletaEquipeNome').textContent=res.nome;
+document.getElementById('eqNome').value='';document.getElementById('eqResp').value='';document.getElementById('eqTel').value='';
+allEquipes[currentNaipe]=await api('/equipes/'+currentNaipe);
+showToast('Equipe inscrita! Agora cadastre os atletas.');showStepAtletas();renderAtletasInsc();
+}
+
+async function addAtleta(){
+const nome=document.getElementById('atlNome').value.trim(),nasc=document.getElementById('atlNasc').value;
+const tipoDoc=document.getElementById('atlTipoDoc').value,numDoc=document.getElementById('atlNumDoc').value.trim();
+if(!nome||!nasc||!numDoc){showToast('Preencha todos os campos do atleta');return}
+await api('/atletas/'+currentInscEquipeId,'POST',{nome_completo:nome,data_nascimento:nasc,tipo_documento:tipoDoc,numero_documento:numDoc});
+document.getElementById('atlNome').value='';document.getElementById('atlNasc').value='';document.getElementById('atlNumDoc').value='';
+showToast('Atleta adicionado!');renderAtletasInsc();
+}
+async function renderAtletasInsc(){
+if(!currentInscEquipeId)return;
+const atletas=await api('/atletas/'+currentInscEquipeId);
+const c=document.getElementById('atletasList');
+if(!atletas.length){c.innerHTML='<div class="card" style="text-align:center;color:var(--g300);font-size:.85rem">Nenhum atleta cadastrado ainda</div>';return}
+c.innerHTML='<div class="card"><div class="card-title" style="margin-bottom:8px;font-size:.9rem">Atletas Cadastrados ('+atletas.length+')</div>'+
+atletas.map((a,i)=>{
+let dn=a.data_nascimento||'';if(dn&&dn.includes('-')){try{const p=dn.split('-');dn=p[2]+'/'+p[1]+'/'+p[0]}catch(e){}}
+return`<div class="atleta-item"><span class="atleta-num">${i+1}</span><div style="flex:1"><strong>${a.nome_completo}</strong><br><span style="color:var(--g400);font-size:.78rem">${dn} · ${a.tipo_documento} ${a.numero_documento}</span></div>
+<button class="btn btn-danger btn-sm" onclick="deleteAtletaInsc('${a.id}')">✕</button></div>`}).join('')+'</div>';
+}
+async function deleteAtletaInsc(aid){await api('/atletas/'+currentInscEquipeId+'/'+aid,'DELETE');showToast('Removido');renderAtletasInsc()}
+function voltarEquipe(){currentInscEquipeId=null;currentInscEquipeNome='';showStepEquipe()}
+function finalizarInscricao(){showToast('Inscrição finalizada!');currentInscEquipeId=null;currentInscEquipeNome='';showStepEquipe();renderInscricao()}
+
+// === EQUIPES ===
+function renderEquipes(){
+const eq=allEquipes[currentNaipe];
+document.getElementById('equipesCount').innerHTML=`<span class="badge ${eq.length>=8?'badge-green':'badge-gray'}">${eq.length}/8 equipes</span>`;
+if(!eq.length){document.getElementById('equipesList').innerHTML='<div class="empty-state"><div class="icon">🏐</div><p>Nenhuma equipe inscrita</p></div>';return}
+document.getElementById('equipesList').innerHTML=`<div class="card"><div class="table-wrap"><table>
+<tr><th>#</th><th>Equipe</th><th>Responsável</th><th>Tel</th><th></th>${isAdmin?'<th></th>':''}</tr>
+${eq.map((e,i)=>`<tr><td style="font-family:'Oswald';font-weight:600;color:var(--g300)">${i+1}</td>
+<td style="font-weight:600">${e.nome}</td><td style="color:var(--g400);font-size:.82rem">${e.responsavel}</td>
+<td style="color:var(--g400);font-size:.82rem">${e.telefone||'-'}</td>
+<td><button class="btn btn-outline btn-sm" onclick="verAtletas('${e.id}','${e.nome}')">👥</button></td>
+${isAdmin?`<td><button class="btn btn-danger btn-sm" onclick="deleteEquipe('${e.id}')">✕</button></td>`:''}</tr>`).join('')}
+</table></div></div>`;
+}
+async function verAtletas(eid,nome){
+const atletas=await api('/atletas/'+eid);
+let html=`<div style="margin-bottom:12px"><strong>${nome}</strong> — ${atletas.length} atleta(s)</div>`;
+if(!atletas.length)html+='<p style="color:var(--g300);text-align:center;padding:20px">Nenhum atleta cadastrado</p>';
+else html+=atletas.map((a,i)=>{let dn=a.data_nascimento||'';if(dn&&dn.includes('-')){try{const p=dn.split('-');dn=p[2]+'/'+p[1]+'/'+p[0]}catch(e){}}
+return`<div class="atleta-item"><span class="atleta-num">${i+1}</span><div style="flex:1"><strong>${a.nome_completo}</strong><br><span style="color:var(--g400);font-size:.78rem">${dn} · ${a.tipo_documento} ${a.numero_documento}</span></div></div>`}).join('');
+html+=`<div style="margin-top:14px"><a href="/api/cartelao/${currentNaipe}/${eid}" target="_blank" class="btn btn-red btn-full">🖨 Imprimir Cartelão</a></div>`;
+document.getElementById('atletasModalBody').innerHTML=html;openModal('atletasModal');
+}
+async function deleteEquipe(id){if(!confirm('Remover equipe?'))return;await api('/equipes/'+currentNaipe+'/'+id,'DELETE');showToast('Removida');allEquipes[currentNaipe]=await api('/equipes/'+currentNaipe);allGrupos[currentNaipe]=await api('/grupos/'+currentNaipe);renderEquipes();renderGrupos()}
+
+// === GRUPOS ===
+function renderGrupos(){
+const g=allGrupos[currentNaipe];document.getElementById('gruposActions').style.display=isAdmin?'block':'none';
+const renderG=(n,ids)=>`<div class="grupo-card"><div class="grupo-header">Grupo ${n}</div><div style="padding:6px 0">
+${ids.length?ids.map((id,i)=>`<div class="grupo-item"><span style="font-family:'Oswald';font-weight:700;font-size:.8rem;width:22px;color:${i<2?'var(--red)':'var(--g300)'}">${i+1}.</span><span style="font-weight:500">${getEquipeName(id)}</span></div>`).join('')
+:'<div class="grupo-item" style="color:var(--g300);justify-content:center">Vazio</div>'}</div></div>`;
+document.getElementById('gruposDisplay').innerHTML=renderG('A',g.A||[])+renderG('B',g.B||[]);
+}
+async function sortearGrupos(){if(!confirm('Sortear grupos?'))return;allGrupos[currentNaipe]=await api('/grupos/'+currentNaipe+'/sorteio','POST');showToast('Sorteados!');renderGrupos()}
+
+// === JOGOS ===
+function renderJogos(){
+const jogos=allJogos[currentNaipe];document.getElementById('jogosActions').style.display=isAdmin?'block':'none';
+const gj=jogos.filter(j=>j.fase==='grupos'),semi=jogos.filter(j=>j.fase==='semi'),fin=jogos.find(j=>j.fase==='final'),ter=jogos.find(j=>j.fase==='terceiro');
+const ge=document.getElementById('jogosFaseGrupos'),ee=document.getElementById('jogosFaseElim');
+if(!gj.length&&!semi.length){ge.innerHTML='<div class="empty-state"><div class="icon">📋</div><p>Jogos não gerados</p></div>';ee.innerHTML='';return}
+const gA=gj.filter(j=>j.grupo==='A'),gB=gj.filter(j=>j.grupo==='B');
+ge.innerHTML=`<div style="text-align:center;font-family:'Oswald';font-weight:600;font-size:.95rem;letter-spacing:1px;text-transform:uppercase;color:var(--g500);margin-bottom:10px">Fase de Grupos</div>
+${gA.length?`<div style="font-size:.7rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--g400);margin-bottom:6px">Grupo A</div>`:''}${gA.map(renderMatch).join('')}
+${gB.length?`<div style="font-size:.7rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--g400);margin:14px 0 6px">Grupo B</div>`:''}${gB.map(renderMatch).join('')}`;
+let eh=`<div style="text-align:center;font-family:'Oswald';font-weight:600;font-size:.95rem;letter-spacing:1px;text-transform:uppercase;color:var(--g500);margin:20px 0 10px">Cruzamento Olímpico</div>`;
+if(semi.length){eh+=`<div style="font-size:.7rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--g400);margin-bottom:6px">Semifinais</div>`+semi.map(renderMatch).join('')}
+if(ter){eh+=`<div style="font-size:.7rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--g400);margin:14px 0 6px">3º Lugar</div>`+renderMatch(ter)}
+if(fin){eh+=`<div style="font-size:.7rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--red);margin:14px 0 6px">⭐ Final</div>`+renderMatch(fin)}
+ee.innerHTML=eh;
+}
+function renderMatch(j){
+const done=j.finalizado,p=j.parciais||[];
+return`<div class="match-card ${done?'match-done':'match-pending'}" ${isAdmin?`onclick="openScoreEdit('${j.id}')" style="cursor:pointer"`:''}><div class="match-fase">${j.label||'Grupo '+j.grupo}</div>
+<div class="match-teams"><div class="match-team">${getEquipeName(j.equipe_a)}</div>
+<div class="match-score"><span>${j.sets_a}</span><span class="vs">×</span><span>${j.sets_b}</span></div>
+<div class="match-team right">${getEquipeName(j.equipe_b)}</div></div>
+${p.length?`<div class="parciais-row">${p.map(x=>`<span class="parcial-badge">${x}</span>`).join('')}</div>`:''}</div>`;
+}
+function openScoreEdit(jid){
+if(!isAdmin)return;const j=allJogos[currentNaipe].find(x=>x.id===jid);if(!j)return;
+const eA=getEquipeName(j.equipe_a),eB=getEquipeName(j.equipe_b);
+let tsel='';
+if((j.fase==='semi'||j.fase==='final'||j.fase==='terceiro')&&!j.equipe_a){
+const eq=allEquipes[currentNaipe];
+tsel=`<div class="form-group"><label class="form-label">Equipe A</label><select class="form-input form-select" id="scoreEqA"><option value="">Selecione</option>${eq.map(e=>`<option value="${e.id}">${e.nome}</option>`).join('')}</select></div>
+<div class="form-group"><label class="form-label">Equipe B</label><select class="form-input form-select" id="scoreEqB"><option value="">Selecione</option>${eq.map(e=>`<option value="${e.id}">${e.nome}</option>`).join('')}</select></div>`}
+document.getElementById('scoreModalBody').innerHTML=`${tsel}
+<div style="text-align:center;margin-bottom:16px"><div style="font-family:'Oswald';font-weight:600;font-size:1rem;text-transform:uppercase">${eA} × ${eB}</div></div>
+<div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:16px">
+<div style="text-align:center"><div class="form-label">${eA}</div><input class="score-input" id="setsA" type="number" min="0" max="3" value="${j.sets_a}"></div>
+<div style="font-family:'Oswald';color:var(--g300);font-size:1.2rem">×</div>
+<div style="text-align:center"><div class="form-label">${eB}</div><input class="score-input" id="setsB" type="number" min="0" max="3" value="${j.sets_b}"></div></div>
+<div class="form-group"><label class="form-label">Parciais (ex: 25x20, 22x25)</label><input class="form-input" id="parciais" value="${(j.parciais||[]).join(', ')}"></div>
+<div style="display:flex;gap:8px"><button class="btn btn-black btn-full" onclick="saveScore('${jid}',false)">Salvar</button><button class="btn btn-red btn-full" onclick="saveScore('${jid}',true)">Finalizar</button></div>`;
+openModal('scoreModal');
+}
+async function saveScore(jid,fin){
+const sa=parseInt(document.getElementById('setsA').value)||0,sb=parseInt(document.getElementById('setsB').value)||0;
+const ps=document.getElementById('parciais').value.trim(),parciais=ps?ps.split(',').map(s=>s.trim()):[];
+const body={sets_a:sa,sets_b:sb,parciais,finalizado:fin};
+const eqA=document.getElementById('scoreEqA'),eqB=document.getElementById('scoreEqB');
+if(eqA?.value)body.equipe_a=eqA.value;if(eqB?.value)body.equipe_b=eqB.value;
+await api('/jogos/'+currentNaipe+'/'+jid,'PUT',body);closeModal('scoreModal');showToast(fin?'Finalizado!':'Salvo');
+allJogos[currentNaipe]=await api('/jogos/'+currentNaipe);renderJogos();
+}
+async function gerarJogos(){if(!confirm('Gerar jogos?'))return;allJogos[currentNaipe]=await api('/jogos/'+currentNaipe+'/gerar','POST');showToast('Gerados!');renderJogos()}
+
+// === CLASSIFICACAO ===
+async function renderClassificacao(){
+const renderT=async(g)=>{const d=await api('/classificacao/'+currentNaipe+'/'+g);
+if(!d.length)return'<div class="empty-state"><p>Sem dados — Grupo '+g+'</p></div>';
+return`<div class="card"><div class="card-title" style="margin-bottom:10px">Grupo ${g}</div><div class="table-wrap"><table>
+<tr><th>#</th><th>Equipe</th><th>J</th><th>V</th><th>D</th><th>SP</th><th>SC</th><th>SD</th><th>PTS</th></tr>
+${d.map((e,i)=>`<tr><td class="${i<2?'pos-'+(i+1):''}" style="font-family:'Oswald';font-weight:700">${i+1}</td>
+<td style="font-weight:600">${e.nome}</td><td>${e.jogos}</td><td>${e.vitorias}</td><td>${e.derrotas}</td>
+<td>${e.sets_pro}</td><td>${e.sets_contra}</td><td>${e.sets_pro-e.sets_contra}</td>
+<td style="font-family:'Oswald';font-weight:700;color:var(--red)">${e.pontos}</td></tr>`).join('')}</table></div></div>`;};
+document.getElementById('classGrupoA').innerHTML=await renderT('A');
+document.getElementById('classGrupoB').innerHTML=await renderT('B');
+}
+
+// === REGULAMENTO ===
+async function renderRegulamento(){
+const res=await api('/regulamento');const txt=res.regulamento||'';
+const logoHeader=`<div style="text-align:center;padding:24px 0 16px"><img src="/static/logo.jpeg" style="width:120px;filter:drop-shadow(0 4px 10px rgba(0,0,0,.15))"><div style="font-family:'Oswald',sans-serif;font-weight:700;font-size:1.2rem;letter-spacing:2px;text-transform:uppercase;margin-top:10px">Sampa Volleyball <span style="color:var(--red)">League</span></div><div style="font-family:'Barlow Condensed',sans-serif;font-weight:500;color:var(--g400);font-size:.85rem;letter-spacing:1.5px;text-transform:uppercase;margin-top:4px">Regulamento Oficial</div></div>`;
+if(isAdmin){document.getElementById('regulamentoEdit').style.display='block';document.getElementById('regulamentoText').value=txt;
+document.getElementById('regulamentoView').innerHTML=txt?`${logoHeader}<div class="card"><div class="regulamento-content">${txt.replace(/\n/g,'<br>')}</div></div>`:''}
+else{document.getElementById('regulamentoEdit').style.display='none';
+document.getElementById('regulamentoView').innerHTML=txt?`${logoHeader}<div class="card"><div class="regulamento-content">${txt.replace(/\n/g,'<br>')}</div></div>`
+:'<div class="empty-state"><div class="icon">📜</div><p>Regulamento em breve</p></div>'}
+}
+async function salvarRegulamento(){
+await api('/regulamento','POST',{regulamento:document.getElementById('regulamentoText').value});showToast('Regulamento salvo!');renderRegulamento();
+}
+
+refreshAll();
+</script>
+</body>
+</html>
