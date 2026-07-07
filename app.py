@@ -821,27 +821,37 @@ def auth_equipe():
     return jsonify({"ok": False, "error": f"Login ou senha incorretos. {attempts_left} tentativa(s)."}), 401
 
 # --- TORNEIOS (era ETAPAS + CONFIG por naipe; config agora é embutida no torneio) ---
-def _torneio_publico(t):
-    """Torneio sem campos internos (prefixados com _), pra respostas públicas."""
-    return {k: v for k, v in t.items() if not k.startswith("_")}
+def _torneio_publico(t, data=None):
+    """Torneio sem campos internos (prefixados com _). Se data for passado, inclui contadores
+    inscritos / lista_espera_count / lotado (pra card público e lógica de inscrição)."""
+    out = {k: v for k, v in t.items() if not k.startswith("_")}
+    if data is not None:
+        tid = t.get("id")
+        eqs = [e for e in data.get("equipes", []) if e.get("torneio_id") == tid and not e.get("is_test")]
+        inscritos = sum(1 for e in eqs if not e.get("lista_espera"))
+        out["inscritos"] = inscritos
+        out["lista_espera_count"] = sum(1 for e in eqs if e.get("lista_espera"))
+        out["lotado"] = inscritos >= t.get("max_equipes", 8)
+    return out
 
 @app.route('/api/torneios', methods=['GET'])
 def get_torneios():
-    """Lista torneios. ?naipe=feminino filtra por naipe. Público."""
+    """Lista torneios com contadores (inscritos/lista_espera/lotado). ?naipe= filtra. Público."""
     data = load_data()
     naipe = request.args.get("naipe")
     ts = data.get("torneios", [])
     if naipe:
         ts = [t for t in ts if t.get("naipe") == naipe]
     ts = sorted(ts, key=lambda t: (t.get("data") or "", t.get("created_at") or ""))
-    return jsonify([_torneio_publico(t) for t in ts])
+    return jsonify([_torneio_publico(t, data) for t in ts])
 
 @app.route('/api/torneios/<torneio_id>', methods=['GET'])
 def get_torneio_route(torneio_id):
-    t = get_torneio(load_data(), torneio_id)
+    data = load_data()
+    t = get_torneio(data, torneio_id)
     if not t:
         return jsonify({"error": "Torneio não encontrado"}), 404
-    return jsonify(_torneio_publico(t))
+    return jsonify(_torneio_publico(t, data))
 
 @app.route('/api/torneios', methods=['POST'])
 @admin_required
@@ -938,6 +948,8 @@ def get_equipes():
     for e in data.get("equipes", []):
         if e.get("is_test"):
             continue  # Equipes de teste nunca aparecem em endpoint público
+        if e.get("lista_espera"):
+            continue  # Lista de espera não é equipe inscrita (contagem sai no /api/torneios)
         if tid and e.get("torneio_id") != tid:
             continue
         pe = {k: v for k, v in e.items() if k not in ("senha", "senha_hash", "login")}
@@ -1005,9 +1017,9 @@ def add_equipe():
         equipes = data.setdefault("equipes", [])
         if torneio:
             max_eq = torneio.get("max_equipes", 8)
-            # Só equipes reais DO MESMO torneio contam pro máximo (teste nunca conta).
+            # Só equipes reais DO MESMO torneio contam pro máximo (teste e lista de espera nunca contam).
             reais_no_torneio = [e for e in equipes
-                                if not e.get("is_test") and e.get("torneio_id") == torneio_id]
+                                if not e.get("is_test") and not e.get("lista_espera") and e.get("torneio_id") == torneio_id]
             if len(reais_no_torneio) >= max_eq:
                 return ("max", max_eq)
         login = generate_team_login(nome)
@@ -1039,6 +1051,77 @@ def add_equipe():
     out = {k: v for k, v in equipe.items() if k != "senha_hash"}
     out["senha"] = plain_password
     return jsonify(out), 201
+
+@app.route('/api/equipes/lista-espera', methods=['POST'])
+def add_lista_espera():
+    """Entra na LISTA DE ESPERA de um torneio (usado quando está lotado). Cadastro leve:
+    nome/responsável/telefone. Não conta no máximo, não gera login/senha (isso vem na promoção)."""
+    is_admin = bool(session.get('is_admin'))
+    if not is_admin and not inscricao_aberta_back():
+        return jsonify({"error": "Inscrições ainda não estão abertas"}), 403
+    body = request.json or {}
+    torneio_id = body.get("torneio_id") or None
+    nome = (body.get("nome", "") or "").strip()
+    if not nome:
+        return jsonify({"error": "Nome obrigatório"}), 400
+    if len(nome) > 80:
+        return jsonify({"error": "Nome muito longo"}), 400
+    responsavel = (body.get("responsavel", "") or "").strip()[:80]
+    telefone = (body.get("telefone", "") or "").strip()[:30]
+    def _do(data):
+        if not get_torneio(data, torneio_id):
+            return ("notorneio", None)
+        equipes = data.setdefault("equipes", [])
+        na_espera = sum(1 for e in equipes
+                        if e.get("lista_espera") and e.get("torneio_id") == torneio_id)
+        entry = {
+            "id": str(uuid.uuid4())[:8], "torneio_id": torneio_id, "nome": nome,
+            "responsavel": responsavel, "telefone": telefone,
+            "lista_espera": True, "pagamento_status": "pendente", "comprovante": None,
+            "created_at": datetime.now().isoformat(),
+        }
+        equipes.append(entry)
+        return ("ok", entry, na_espera + 1)
+    res = update_data(_do)
+    if res[0] == "notorneio":
+        return jsonify({"error": "Selecione um torneio válido"}), 400
+    do_backup()
+    return jsonify({"ok": True, "id": res[1]["id"], "posicao": res[2]}), 201
+
+@app.route('/api/equipes/<equipe_id>/promover', methods=['POST'])
+@admin_required
+def promover_lista_espera(equipe_id):
+    """Promove uma equipe da lista de espera para inscrita: gera login+senha e tira a flag.
+    Retorna a senha em texto puro UMA vez (igual inscrição normal)."""
+    plain = None
+    def _do(data):
+        nonlocal plain
+        eq = find_equipe(data, equipe_id)
+        if not eq:
+            return None
+        if not eq.get("lista_espera"):
+            return ("naoespera", None)
+        equipes = data.get("equipes", [])
+        login = generate_team_login(eq.get("nome", "equipe"))
+        existing = {e.get("login", "") for e in equipes}
+        base, i = login, 1
+        while login in existing:
+            login = f"{base}-{i}"; i += 1
+        plain = generate_team_password()
+        eq["login"] = login
+        eq["senha_hash"] = generate_password_hash(plain)
+        eq["lista_espera"] = False
+        eq.setdefault("pagamento_status", "pendente")
+        return ("ok", eq)
+    res = update_data(_do)
+    if res is None:
+        return jsonify({"error": "Equipe não encontrada"}), 404
+    if res[0] == "naoespera":
+        return jsonify({"error": "Equipe não está na lista de espera"}), 400
+    do_backup()
+    out = {k: v for k, v in res[1].items() if k != "senha_hash"}
+    out["senha"] = plain
+    return jsonify({"ok": True, "equipe": out})
 
 @app.route('/api/equipes/<equipe_id>/mover', methods=['POST'])
 @admin_required
@@ -1423,9 +1506,9 @@ def sortear_grupos(torneio_id):
     def _do(data):
         torneio = get_torneio(data, torneio_id) or {}
         fmt = torneio.get("formato_jogos", "grupos")
-        # Só equipes reais DESTE torneio entram no sorteio (teste nunca).
+        # Só equipes reais DESTE torneio entram no sorteio (teste e lista de espera nunca).
         ids = [e["id"] for e in data.get("equipes", [])
-               if e.get("torneio_id") == torneio_id and not e.get("is_test")]
+               if e.get("torneio_id") == torneio_id and not e.get("is_test") and not e.get("lista_espera")]
         random.shuffle(ids)
         # Formatos de grupo único (todos em A): hexagonal, quadrangular e triangular.
         if fmt in ("hexagonal", "quad_corrido", "quad_decisao", "tri_corrido", "tri_final"):
@@ -2087,7 +2170,7 @@ def get_dashboard():
     stats = {}
     for naipe in ["masculino", "feminino"]:
         equipes = [e for e in data.get("equipes", [])
-                   if not e.get("is_test") and tid_naipe.get(e.get("torneio_id")) == naipe]
+                   if not e.get("is_test") and not e.get("lista_espera") and tid_naipe.get(e.get("torneio_id")) == naipe]
         atletas_count = sum(len(data.get("atletas", {}).get(e["id"], [])) for e in equipes)
         pagos = sum(1 for e in equipes if e.get("pagamento_status") == "aprovado")
         pendentes = sum(1 for e in equipes if e.get("pagamento_status", "pendente") == "pendente")

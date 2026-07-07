@@ -386,7 +386,7 @@ ${next.horario?`<p style="font-size:.78rem;color:rgba(255,255,255,.6)">🕐 ${_e
 <div class="etapa-badges">
 <span class="etapa-badge red">${naipeLabel}${next.categoria?' '+_escEt(next.categoria):''}</span>
 ${fmt?`<span class="etapa-badge dark">${fmt}</span>`:''}
-${next.max_equipes?`<span class="etapa-badge dark">${next.max_equipes} equipes</span>`:''}
+${next.lotado?`<span class="etapa-badge" style="background:#f59e0b">🔴 Lotado${next.lista_espera_count?' · '+next.lista_espera_count+' na espera':''}</span>`:`<span class="etapa-badge dark">${next.inscritos||0}/${next.max_equipes||'?'} vagas</span>`}
 </div>
 <a href="/app#sec-inscricao?torneio=${_escEt(next.id)}" class="etapa-card-cta">🏐 Inscreva-se!</a>`;
 }

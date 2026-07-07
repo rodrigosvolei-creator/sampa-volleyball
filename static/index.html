@@ -764,7 +764,7 @@ list.innerHTML=torneios.map(e=>{const d=formatDate(e.data);const isVF=(e.nome||'
 <div style="flex:1;${isVF?'padding-right:110px':''}"><div style="font-family:'Oswald';font-weight:600;text-transform:uppercase">${esc(e.nome)}</div>
 <div style="font-size:.85rem;color:var(--g400)">📍 ${esc(e.local)}</div>${e.endereco?`<div style="font-size:.78rem;color:var(--g300)">${esc(e.endereco)}</div>`:''}
 ${e.horario?`<div style="font-size:.82rem;color:var(--g400);margin-top:2px">🕐 ${esc(e.horario)}h</div>`:''}
-<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap"><span class="badge badge-black">${esc(torneioNaipeLabel(e))}</span>${e.categoria?`<span class="badge badge-red">${esc(e.categoria)}</span>`:''}${e.formato_jogos?`<span class="badge badge-black">${esc(e.formato_jogos)}</span>`:''}<span class="badge badge-black">${(allEquipes[e.id]||[]).length||0}/${e.max_equipes||'-'} eq</span></div></div>
+<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap"><span class="badge badge-black">${esc(torneioNaipeLabel(e))}</span>${e.categoria?`<span class="badge badge-red">${esc(e.categoria)}</span>`:''}${e.formato_jogos?`<span class="badge badge-black">${esc(e.formato_jogos)}</span>`:''}${e.lotado?`<span class="badge" style="background:#f59e0b;color:#fff">🔴 Lotado${e.lista_espera_count?' · '+e.lista_espera_count+' espera':''}</span>`:`<span class="badge badge-black">${e.inscritos||0}/${e.max_equipes||'-'} eq</span>`}</div></div>
 ${isVF?'<img src="/static/volley-fast-2026.jpeg" alt="" style="position:absolute;right:20px;top:50%;transform:translateY(-50%);width:100px;height:100px;border-radius:50%;object-fit:cover;opacity:.9;box-shadow:0 4px 15px rgba(0,0,0,.1)">':''}
 ${isAdmin?`<div style="display:flex;gap:6px;${isVF?'position:absolute;top:10px;right:10px;z-index:20':''}"><button class="btn btn-outline btn-sm" data-eid="${esc(e.id)}" onclick="editarEtapa(this.dataset.eid)">✏</button><button class="btn btn-danger btn-sm" data-eid="${esc(e.id)}" onclick="deleteEtapa(this.dataset.eid)">✕</button></div>`:''}
 ${adiada?'<div class="adiada-overlay"></div>':''}</div>`}).join('');
@@ -815,11 +815,13 @@ async function deleteEtapa(id){if(!confirm('Remover torneio? As equipes inscrita
 
 // === INSCRICAO ===
 function renderInscricao(){
-const eq=allEquipes[currentTorneio];const st=document.getElementById('inscricaoStatus');
+const eq=allEquipes[currentTorneio]||[];const st=document.getElementById('inscricaoStatus');
 const count=eq.length;const maxEq=curTorneio()?.max_equipes||8;
+const naEspera=curTorneio()?.lista_espera_count||0;
+const lotado=count>=maxEq;
 const aberta=inscricaoAberta();
 const resto=tempoRestanteInscricao();
-st.innerHTML=`<div style="margin-bottom:12px;font-size:.82rem;color:var(--g400)">${count}/${maxEq} vagas<div style="background:var(--g100);border-radius:20px;height:8px;margin-top:5px;overflow:hidden"><div style="background:var(--red);height:100%;width:${(count/maxEq)*100}%;border-radius:20px"></div></div></div>`;
+st.innerHTML=`<div style="margin-bottom:12px;font-size:.82rem;color:var(--g400)">${count}/${maxEq} vagas${naEspera?` · <strong style="color:#f59e0b">${naEspera} na lista de espera</strong>`:''}<div style="background:var(--g100);border-radius:20px;height:8px;margin-top:5px;overflow:hidden"><div style="background:${lotado?'#f59e0b':'var(--red)'};height:100%;width:${Math.min(100,(count/maxEq)*100)}%;border-radius:20px"></div></div></div>`;
 // Check if inscription is not open yet
 if(!aberta){
 st.innerHTML+=`<div style="background:linear-gradient(135deg,#1a1a1a,#2d2d2d);border:2px solid var(--red);border-radius:var(--radius);padding:24px;text-align:center;margin-bottom:14px">
@@ -833,13 +835,17 @@ document.getElementById('inscSteps').style.display='none';
 document.getElementById('inscLoginArea').style.display='none';
 return;
 }
-if(count>=maxEq&&!teamSession&&!isAdmin){
-st.innerHTML+=`<div class="card" style="text-align:center;color:var(--red);font-weight:600">Inscrições encerradas — ${maxEq} equipes!</div>`;
-document.getElementById('stepEquipe').style.display='none';document.getElementById('inscSteps').style.display='none'}
+// Torneio lotado → modo LISTA DE ESPERA (banner + botão vira "entrar na lista")
+if(lotado&&!teamSession){
+st.innerHTML+=`<div class="card" style="border:2px solid #f59e0b;background:#fffbeb"><div style="font-family:'Oswald';font-weight:700;color:#b45309;margin-bottom:4px">🔴 Torneio lotado (${maxEq}/${maxEq})</div><div style="font-size:.85rem;color:#78350f">Entre na <strong>lista de espera</strong> — se abrir vaga, a organização chama na ordem de chegada.</div></div>`;
+}
 // Show login area only if not logged in
 document.getElementById('inscLoginArea').style.display=(teamSession||isAdmin)?'none':'block';
 if(teamSession){showStepAtletas()}
 else if(!currentInscEquipeId){showStepEquipe()}
+// Ajusta o botão conforme o modo (inscrição normal vs lista de espera)
+const btnInsc=document.querySelector('#stepEquipe button');
+if(btnInsc)btnInsc.textContent=lotado?'📝 Entrar na Lista de Espera':'Inscrever Equipe';
 }
 function showStepEquipe(){
 document.getElementById('stepEquipe').style.display='block';document.getElementById('stepAtletas').style.display='none';
@@ -872,6 +878,22 @@ async function inscreverEquipe(){
 if(!inscricaoAberta()){showToast('Inscrições abrem dia 27/04 às 14:00h');return}
 const nome=document.getElementById('eqNome').value.trim(),resp=document.getElementById('eqResp').value.trim(),tel=document.getElementById('eqTel').value.trim();
 if(!nome||!resp){showToast('Preencha nome e responsável');return}
+// Torneio lotado → entra na LISTA DE ESPERA (cadastro leve) em vez de inscrever
+const lotado=(allEquipes[currentTorneio]||[]).length>=(curTorneio()?.max_equipes||8);
+if(lotado){
+  const r=await api('/equipes/lista-espera','POST',{nome,responsavel:resp,telefone:tel,torneio_id:currentTorneio});
+  if(r.error){showToast(r.error);return}
+  ['eqNome','eqResp','eqTel'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});
+  await loadTorneios();
+  document.getElementById('stepEquipe').style.display='none';
+  document.getElementById('inscSteps').style.display='none';
+  document.getElementById('inscricaoStatus').innerHTML=`<div class="card" style="border:2px solid #16a34a;background:#f0fdf4;text-align:center">
+<div style="font-family:'Oswald';font-weight:700;font-size:1rem;color:#15803d;margin-bottom:6px">✅ Você está na lista de espera!</div>
+<div style="font-size:1.5rem;font-weight:700;color:#166534">Posição ${r.posicao}</div>
+<div style="font-size:.82rem;color:#166534;margin-top:8px;line-height:1.5">Se abrir vaga, a organização entra em contato pelo telefone <strong>${esc(tel||'informado')}</strong>, na ordem de chegada.</div></div>`;
+  showToast('Entrou na lista de espera — posição '+r.posicao);
+  return;
+}
 const res=await api('/equipes','POST',{nome,responsavel:resp,telefone:tel,torneio_id:currentTorneio});
 if(res.error){showToast(res.error);return}
 currentInscEquipeId=res.id;currentInscEquipeNome=res.nome;
@@ -987,7 +1009,8 @@ const eqAll=allEquipes[currentTorneio]||[];
 // Filtra equipes de teste — elas só aparecem no card Modo Teste do Painel
 const eq=eqAll.filter(e=>!e.is_test);
 const maxEq=curTorneio()?.max_equipes||8;
-document.getElementById('equipesCount').innerHTML=`<span class="badge ${eq.length>=maxEq?'badge-green':'badge-gray'}">${eq.length}/${maxEq} equipes</span>`;
+const _espCount=curTorneio()?.lista_espera_count||0;
+document.getElementById('equipesCount').innerHTML=`<span class="badge ${eq.length>=maxEq?'badge-green':'badge-gray'}">${eq.length}/${maxEq} equipes</span>${_espCount?` <span class="badge" style="background:#f59e0b;color:#fff">⏳ ${_espCount} espera</span>`:''}`;
 // Botão WhatsApp (só admin)
 const actEl=document.getElementById('equipesActions');
 if(actEl){
@@ -1017,9 +1040,26 @@ ${isAdmin?`<td>${pgBadge}</td><td style="font-size:.75rem;color:var(--g400)">${e
 :''}
 </tr>`}).join('')}</table></div></div>`;
 }
+// Lista de espera DESTE torneio (por ordem de chegada) — admin promove quando abre vaga
+if(isAdmin){
+  const espera=(adminEq||[]).filter(e=>e.lista_espera).sort((a,b)=>(a.created_at||'').localeCompare(b.created_at||''));
+  if(espera.length){
+    html+=`<div class="card" style="margin-top:14px;border:2px solid #f59e0b">
+<div class="card-title" style="color:#b45309;margin-bottom:8px">⏳ Lista de Espera (${espera.length})</div>
+<div style="font-size:.8rem;color:var(--g400);margin-bottom:10px">Por ordem de chegada. Abriu vaga? Promova a próxima — ela recebe login/senha e vira inscrita.</div>
+<div class="table-wrap"><table><tr><th>#</th><th>Equipe</th><th>Responsável</th><th>Telefone</th><th></th><th></th></tr>
+${espera.map((e,i)=>`<tr><td style="font-family:'Oswald';font-weight:700;color:#b45309">${i+1}º</td>
+<td style="font-weight:600">${esc(e.nome)}</td>
+<td style="color:var(--g400);font-size:.82rem">${esc(e.responsavel||'')}</td>
+<td style="color:var(--g400);font-size:.82rem">${esc(e.telefone||'')}</td>
+<td><button class="btn btn-sm" style="background:#16a34a;color:#fff" data-eid="${esc(e.id)}" onclick="promoverEquipe(this.dataset.eid)">⬆ Promover</button></td>
+<td><button class="btn btn-danger btn-sm" data-eid="${esc(e.id)}" onclick="deleteEquipe(this.dataset.eid)">✕</button></td></tr>`).join('')}
+</table></div></div>`;
+  }
+}
 // Grupo de equipes SEM torneio (órfãs) — admin atribui manualmente (caso QUEEN do SPEC)
 if(isAdmin){
-  const orfas=((await api('/equipes/admin?torneio_id=null'))||[]).filter(e=>!e.is_test);
+  const orfas=((await api('/equipes/admin?torneio_id=null'))||[]).filter(e=>!e.is_test&&!e.lista_espera);
   if(orfas.length){
     html+=`<div class="card" style="margin-top:14px;border:2px solid #f59e0b">
 <div class="card-title" style="color:#f59e0b;margin-bottom:8px">⚠ Sem torneio definido (${orfas.length})</div>
@@ -1043,6 +1083,17 @@ async function moverEquipe(eid,tid){
 const r=await api('/equipes/'+eid+'/mover','POST',{torneio_id_novo:tid||null});
 if(r&&r.ok){showToast('Equipe movida'+(tid?'':' (sem torneio)'));await refreshAll();}
 else showToast(r?.error||'Erro ao mover');
+}
+// Promove uma equipe da lista de espera: gera login/senha e mostra pro admin repassar
+async function promoverEquipe(eid){
+if(!confirm('Promover esta equipe da lista de espera?\n\nEla recebe login/senha e passa a inscrita (pagamento pendente).'))return;
+const r=await api('/equipes/'+eid+'/promover','POST',{});
+if(r&&r.ok){
+  const cred=r.equipe;
+  await refreshAll();renderEquipes();
+  showToast(cred.nome+' promovida!');
+  alert('✅ '+cred.nome+' promovida da lista de espera!\n\nLogin: '+cred.login+'\nSenha: '+cred.senha+'\n\nRepasse essas credenciais pra equipe (ela usa pra acompanhar e enviar o comprovante).');
+}else{showToast(r?.error||'Erro ao promover')}
 }
 // Lista pra WhatsApp — abre modal com responsáveis e telefones formatados pra copiar
 async function abrirListaWhatsApp(){
