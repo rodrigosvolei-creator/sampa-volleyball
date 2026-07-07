@@ -3,21 +3,21 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>SVL — Sampa Volleyball League | 1º Volley Fast 2026</title>
-<meta name="description" content="A nova liga de voleibol Master de São Paulo. Inscrições abertas para o 1º Volley Fast 2026. Feminino: 09/05 · Masculino: 30/05 — São Paulo Futebol Clube.">
+<title>SVL — Sampa Volleyball League | Vôlei Master SP</title>
+<meta name="description" content="A liga de voleibol Master de São Paulo. Torneios rápidos com classificação ao vivo no São Paulo Futebol Clube, em várias categorias. Inscrições abertas.">
 <meta name="theme-color" content="#E31B23">
 <link rel="canonical" href="https://sampavolleyleague.com.br/">
 <!-- Open Graph -->
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Sampa Volleyball League">
-<meta property="og:title" content="SVL — Sampa Volleyball League | 1º Volley Fast 2026">
-<meta property="og:description" content="A nova liga de voleibol Master de São Paulo. Inscrições abertas. Feminino 09/05 · Masculino 30/05 — SPFC.">
+<meta property="og:title" content="SVL — Sampa Volleyball League | Vôlei Master SP">
+<meta property="og:description" content="A liga de voleibol Master de São Paulo. Torneios com classificação ao vivo no SPFC. Inscrições abertas.">
 <meta property="og:url" content="https://sampavolleyleague.com.br/">
 <meta property="og:image" content="https://sampavolleyleague.com.br/static/logo.jpeg">
 <meta property="og:locale" content="pt_BR">
 <!-- Twitter -->
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Sampa Volleyball League — 1º Volley Fast 2026">
+<meta name="twitter:title" content="Sampa Volleyball League — Vôlei Master SP">
 <meta name="twitter:description" content="A nova liga de voleibol Master de São Paulo. Inscrições abertas.">
 <meta name="twitter:image" content="https://sampavolleyleague.com.br/static/logo.jpeg">
 <link rel="icon" type="image/jpeg" href="/static/logo.jpeg">
@@ -66,13 +66,14 @@ body{font-family:'Barlow',sans-serif;background:var(--black);color:var(--white);
 .hero-btn.secondary{background:transparent;color:var(--white);border:2px solid rgba(255,255,255,.2)}
 .hero-btn.secondary:hover{border-color:var(--white)}
 
-/* === ETAPA CARD in hero === */
+/* === TORNEIO CARD in hero === */
 .etapa-card{background:linear-gradient(135deg,rgba(255,255,255,.06) 0%,rgba(255,255,255,.02) 100%);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:28px;backdrop-filter:blur(8px);position:relative;overflow:hidden}
 .etapa-card.adiada{opacity:.85}
-.etapa-card.adiada::after{content:'ETAPA ADIADA';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-12deg);background:#dc2626;color:#fff;font-family:'Oswald',sans-serif;font-weight:700;font-size:1.8rem;letter-spacing:3px;padding:16px 70px;border:3px solid #fff;box-shadow:0 6px 30px rgba(0,0,0,.6);text-transform:uppercase;white-space:nowrap;z-index:10;pointer-events:none;width:140%;text-align:center}
+.etapa-card.adiada::after{content:'TORNEIO ADIADO';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-12deg);background:#dc2626;color:#fff;font-family:'Oswald',sans-serif;font-weight:700;font-size:1.6rem;letter-spacing:3px;padding:16px 60px;border:3px solid #fff;box-shadow:0 6px 30px rgba(0,0,0,.6);text-transform:uppercase;white-space:nowrap;z-index:10;pointer-events:none;width:140%;text-align:center}
 .etapa-card.adiada::before{content:'';position:absolute;inset:0;background:rgba(0,0,0,.5);z-index:9;pointer-events:none;border-radius:inherit}
 @media(max-width:480px){.etapa-card.adiada::after{font-size:1.2rem;padding:10px 40px;letter-spacing:2px}}
 .etapa-card-label{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:.75rem;letter-spacing:3px;text-transform:uppercase;color:var(--red);margin-bottom:14px}
+.torneio-bloco-sep{margin-top:18px;padding-top:18px;border-top:1px solid rgba(255,255,255,.12)}
 .etapa-card-date{display:flex;align-items:flex-start;gap:16px;margin-bottom:16px}
 .etapa-date-box{flex-shrink:0;width:60px;text-align:center;background:var(--red);color:var(--white);border-radius:10px;padding:10px 6px;font-family:'Oswald',sans-serif}
 .etapa-date-box .day{font-size:1.8rem;font-weight:700;line-height:1}
@@ -301,7 +302,7 @@ body{font-family:'Barlow',sans-serif;background:var(--black);color:var(--white);
 <div class="section-label">Sobre a Liga</div>
 <h3>Mais que um torneio.<br>Uma experiência.</h3>
 <p>A SVL nasce com o propósito de elevar o nível do voleibol Master em São Paulo. Um dia inteiro dedicado à competição, com organização profissional, arbitragem completa e um ambiente onde o respeito e a amizade caminham junto com a garra em quadra.</p>
-<p>Hexagonal de jogos rápidos com classificação ao vivo e cruzamento olímpico. A 1ª etapa <strong>Feminina</strong> acontece em <strong>09/05/2026</strong> e a <strong>Masculina</strong> em <strong>30/05/2026</strong>, ambas no <strong>São Paulo Futebol Clube</strong>.</p>
+<p>Torneios de jogos rápidos com classificação ao vivo, em formatos como quadrangular e hexagonal com cruzamento olímpico. As disputas acontecem no <strong>São Paulo Futebol Clube</strong>, reunindo equipes Master em diferentes categorias.</p>
 </div>
 <div class="about-col">
 <div style="height:40px"></div>
@@ -358,51 +359,49 @@ function _escEt(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp
 async function loadEtapaCard(){
 try{
 const today=new Date().toISOString().split('T')[0];
-const [etF,etM,cfgF,cfgM]=await Promise.all([
-fetch('/api/etapas/feminino').then(r=>r.json()),
-fetch('/api/etapas/masculino').then(r=>r.json()),
-fetch('/api/config/feminino').then(r=>r.json()),
-fetch('/api/config/masculino').then(r=>r.json())
-]);
-const allEtapas=[];
-etF.forEach(e=>{e._naipe='feminino';e._maxEq=cfgF.max_equipes||6;allEtapas.push(e)});
-etM.forEach(e=>{e._naipe='masculino';e._maxEq=cfgM.max_equipes||8;allEtapas.push(e)});
-const sorted=allEtapas.filter(e=>e.data>=today).sort((a,b)=>a.data.localeCompare(b.data));
-const next=sorted[0]||allEtapas.sort((a,b)=>a.data.localeCompare(b.data)).pop();
-if(!next){document.getElementById('landingEtapaCard').innerHTML='<div class="etapa-card-label">Em breve</div>';return}
-const dt=new Date(next.data+'T12:00:00');
-const day=dt.getDate();
-const month=dt.toLocaleString('pt-BR',{month:'short'}).toUpperCase();
-const naipeLabel=next._naipe==='feminino'?'Feminino':'Masculino';
-const adiada=next.data==='2026-05-09';
-const card=document.getElementById('landingEtapaCard');
-if(adiada)card.classList.add('adiada');else card.classList.remove('adiada');
-card.innerHTML=`
-<div class="etapa-card-label">🔥 Próxima Etapa</div>
+const torneios=await fetch('/api/torneios').then(r=>r.json());
+const sorted=(Array.isArray(torneios)?torneios:[]).filter(e=>e.data>=today).sort((a,b)=>a.data.localeCompare(b.data));
+const container=document.getElementById('landingEtapaCard');
+if(!sorted.length){container.innerHTML='<div class="etapa-card-label">Em breve</div>';return}
+// Mostra os 2 próximos torneios
+const proximos=sorted.slice(0,2);
+const FMT_LABEL={hexagonal:'Hexagonal',grupos:'Grupos',quad_corrido:'Quadrangular',quad_decisao:'Quadrangular',tri_corrido:'Triangular',tri_final:'Triangular'};
+// Monta o HTML interno de um torneio (cada um com seu próprio botão de inscrição)
+function cardInterno(next){
+  const dt=new Date(next.data+'T12:00:00');
+  const day=dt.getDate();
+  const month=dt.toLocaleString('pt-BR',{month:'short'}).toUpperCase();
+  const naipeLabel=next.naipe==='feminino'?'Feminino':'Masculino';
+  const fmt=FMT_LABEL[next.formato_jogos]||'';
+  return `
 <div class="etapa-card-date">
 <div class="etapa-date-box"><div class="day">${day}</div><div class="month">${month}</div></div>
 <div class="etapa-card-info">
-<h3>${_escEt(next.nome||'Volley Fast 2026')}</h3>
+<h3>${_escEt(next.nome||'')}</h3>
 <p>📍 ${_escEt(next.local||'')}</p>
 ${next.endereco?`<p style="font-size:.78rem;color:rgba(255,255,255,.4)">${_escEt(next.endereco)}</p>`:''}
 ${next.horario?`<p style="font-size:.78rem;color:rgba(255,255,255,.6)">🕐 ${_escEt(next.horario)}h</p>`:''}
 </div>
-${(next.nome||'').toLowerCase().includes('volley fast')?'<img src="/static/volley-fast-2026.jpeg" style="width:80px;height:80px;border-radius:50%;object-fit:cover;box-shadow:0 4px 15px rgba(0,0,0,.4);border:2px solid rgba(255,255,255,.1);flex-shrink:0">':''}
 </div>
 <div class="etapa-badges">
-${next.categoria?`<span class="etapa-badge red">${naipeLabel} ${_escEt(next.categoria)}</span>`:`<span class="etapa-badge red">${naipeLabel}</span>`}
-${next.formato?`<span class="etapa-badge dark">${_escEt(next.formato)}</span>`:''}
-<span class="etapa-badge dark">${next._maxEq} Equipes</span>
+<span class="etapa-badge red">${naipeLabel}${next.categoria?' '+_escEt(next.categoria):''}</span>
+${fmt?`<span class="etapa-badge dark">${fmt}</span>`:''}
+${next.max_equipes?`<span class="etapa-badge dark">${next.max_equipes} equipes</span>`:''}
 </div>
-${adiada?'':`<a href="/app#sec-inscricao" class="etapa-card-cta">🏐 Inscreva-se!</a>`}`;
-// Update countdown bar with live timer
+<a href="/app#sec-inscricao?torneio=${_escEt(next.id)}" class="etapa-card-cta">🏐 Inscreva-se!</a>`;
+}
+const label=proximos.length>1?'🔥 Próximos Torneios':'🔥 Próximo Torneio';
+container.classList.remove('adiada');
+container.innerHTML=`<div class="etapa-card-label">${label}</div>`
+  + proximos.map((e,i)=>`<div class="torneio-bloco${i>0?' torneio-bloco-sep':''}">${cardInterno(e)}</div>`).join('');
+// Countdown usa o primeiro torneio
+const next=proximos[0];
 const cb=document.getElementById('landingCountdown');
 const inscAbre=new Date('2026-04-27T14:00:00-03:00');
-const maxEq=next._maxEq;
 function updateLandingCountdown(){
 const diff=inscAbre-new Date();
 if(diff<=0){
-if(cb)cb.innerHTML=`<span>⚡ INSCRIÇÕES ABERTAS — Vagas limitadas — ${maxEq} equipes</span>`;
+if(cb)cb.innerHTML=`<span>⚡ INSCRIÇÕES ABERTAS — Vagas limitadas</span>`;
 return}
 const dd=Math.floor(diff/86400000),hh=Math.floor((diff%86400000)/3600000),mm=Math.floor((diff%3600000)/60000),ss=Math.floor((diff%60000)/1000);
 const txt=`${dd>0?dd+'d ':''}${String(hh).padStart(2,'0')}h ${String(mm).padStart(2,'0')}min ${String(ss).padStart(2,'0')}s`;
@@ -410,7 +409,7 @@ if(cb)cb.innerHTML=`<span>🔥 INSCRIÇÕES ABREM EM <b style="font-size:1.1em;l
 }
 updateLandingCountdown();
 setInterval(updateLandingCountdown,1000);
-}catch(e){console.log('Etapa load error:',e)}
+}catch(e){console.log('Torneio load error:',e)}
 }
 loadEtapaCard();
 

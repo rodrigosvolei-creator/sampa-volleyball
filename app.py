@@ -6,7 +6,12 @@ import random
 import hashlib
 import shutil
 import string
-import fcntl
+try:
+    import fcntl  # POSIX (Linux/produção). Ausente no Windows/dev local.
+    _HAS_FCNTL = True
+except ImportError:
+    fcntl = None
+    _HAS_FCNTL = False
 import secrets
 import logging
 from functools import wraps
@@ -147,16 +152,19 @@ LOCK_MINUTES = 5
 BOOTSTRAP_ADMIN_PASSWORD = os.environ.get('DEFAULT_ADMIN_PASSWORD', 'sampa2026')
 
 DEFAULT_DATA = {
-    "etapas": {"masculino": [], "feminino": []},
-    "equipes": {"masculino": [], "feminino": []},
-    "atletas": {},
-    "config": {
-        "masculino": {"max_equipes": 8, "formato_jogos": "grupos", "hora_inicio": "08:30", "intervalo_min": 75},
-        "feminino": {"max_equipes": 6, "formato_jogos": "hexagonal", "hora_inicio": "08:30", "intervalo_min": 75}
-    },
-    "grupos": {"masculino": {"A": [], "B": []}, "feminino": {"A": [], "B": []}},
-    "jogos": {"masculino": [], "feminino": []},
-    "regulamento": {"masculino": "", "feminino": ""},
+    # Lista de torneios (era "etapas" por naipe). Cada torneio é uma competição completa e
+    # independente: carrega seu naipe, categoria, formato, config e regulamento próprios.
+    "torneios": [],
+    # Equipes vira lista ÚNICA; cada inscrição carrega torneio_id (1 inscrição = 1 equipe + 1 torneio).
+    "equipes": [],
+    "atletas": {},  # chaveado por equipe_id (inalterado — equipe_id já é único por inscrição)
+    # Grupos e jogos agora chaveados por torneio_id (era por naipe).
+    "grupos": {},   # {torneio_id: {"A": [eid...], "B": [eid...]}}
+    "jogos": {},    # {torneio_id: [ {jogo...}, ... ]}
+    # Regulamento: default global + override opcional por torneio (torneio["regulamento"]).
+    "regulamento_default": "",
+    # Config template para novos torneios; cada torneio carrega sua própria cópia destes campos.
+    "config_default": {"max_equipes": 8, "formato_jogos": "grupos", "hora_inicio": "08:30", "intervalo_min": 75},
     "settings": {
         "nome_torneio": "Sampa Volleyball League",
         "subtitulo": "Temporada 2026",
@@ -189,13 +197,137 @@ class _DataLock:
     def __enter__(self):
         ensure_dirs()
         self.fh = open(self.path, 'a+')
-        fcntl.flock(self.fh, fcntl.LOCK_EX)
+        if _HAS_FCNTL:
+            fcntl.flock(self.fh, fcntl.LOCK_EX)
         return self
     def __exit__(self, *exc):
         try:
-            fcntl.flock(self.fh, fcntl.LOCK_UN)
+            if _HAS_FCNTL:
+                fcntl.flock(self.fh, fcntl.LOCK_UN)
         finally:
             self.fh.close()
+
+def _formato_label_to_enum(label):
+    """Mapeia o texto livre de etapa.formato (ex: 'Hexagonal Feminino') pro enum formato_jogos.
+    Retorna None se não reconhecer (aí o migrador cai no formato_jogos da config do naipe)."""
+    s = (label or "").strip().lower()
+    if not s:
+        return None
+    if "hexagonal" in s:
+        return "hexagonal"
+    if "quad" in s and ("decis" in s or "final" in s):
+        return "quad_decisao"
+    if "quad" in s:
+        return "quad_corrido"
+    if "tri" in s and "final" in s:
+        return "tri_final"
+    if "tri" in s:
+        return "tri_corrido"
+    if "grupo" in s:
+        return "grupos"
+    return None
+
+def _migrate_to_torneios(data):
+    """Migração única e idempotente do schema por-naipe -> por-torneio.
+    Só roda se detectar o schema antigo (etapas/equipes como dict por naipe).
+      - etapas[naipe][]    -> torneios[]        (cada torneio carrega naipe + config própria)
+      - equipes[naipe][]   -> equipes[]         (lista única; cada equipe recebe torneio_id)
+      - grupos[naipe]      -> grupos[torneio_id]
+      - jogos[naipe]       -> jogos[torneio_id]
+      - config[naipe]      -> campos do torneio (formato_jogos/max_equipes/hora/intervalo)
+      - regulamento[naipe] -> regulamento_default (global) + torneio.regulamento
+    Vínculo de equipe legada: se o naipe tem exatamente 1 torneio, vincula a ele; se tem 0 ou
+    >1 (ambíguo), fica torneio_id=None e o admin atribui pela tela (caso QUEEN do SPEC)."""
+    old_etapas = data.get("etapas")
+    old_equipes = data.get("equipes")
+    # Detecta schema antigo: etapas OU equipes como dict por naipe.
+    if not (isinstance(old_etapas, dict) or isinstance(old_equipes, dict)):
+        return  # já está no schema novo — no-op
+    old_config = data.get("config") if isinstance(data.get("config"), dict) else {}
+    old_grupos = data.get("grupos") if isinstance(data.get("grupos"), dict) else {}
+    old_jogos = data.get("jogos") if isinstance(data.get("jogos"), dict) else {}
+    old_reg = data.get("regulamento") if isinstance(data.get("regulamento"), dict) else {}
+    cfg_default = DEFAULT_DATA["config_default"]
+
+    torneios = []
+    naipe_tids = {}  # naipe -> [torneio_id, ...] na ordem das etapas
+    for naipe in ("masculino", "feminino"):
+        etapas_naipe = old_etapas.get(naipe, []) if isinstance(old_etapas, dict) else []
+        cfg = old_config.get(naipe, {}) if isinstance(old_config, dict) else {}
+        tids = []
+        for etapa in etapas_naipe:
+            tid = etapa.get("id") or str(uuid.uuid4())[:8]
+            formato = _formato_label_to_enum(etapa.get("formato")) or cfg.get("formato_jogos", cfg_default["formato_jogos"])
+            data_ev = etapa.get("data", "")
+            torneios.append({
+                "id": tid,
+                "naipe": naipe,
+                "nome": etapa.get("nome", ""),
+                "categoria": etapa.get("categoria", ""),
+                "local": etapa.get("local", ""),
+                "endereco": etapa.get("endereco", ""),
+                "data": data_ev,
+                "horario": etapa.get("horario", "") or cfg.get("hora_inicio", cfg_default["hora_inicio"]),
+                "formato_jogos": formato,
+                "max_equipes": cfg.get("max_equipes", cfg_default["max_equipes"]),
+                "hora_inicio": cfg.get("hora_inicio", cfg_default["hora_inicio"]),
+                "intervalo_min": cfg.get("intervalo_min", cfg_default["intervalo_min"]),
+                "taxa": etapa.get("taxa", 0),
+                "adiado": bool(etapa.get("adiado", data_ev == "2026-05-09")),
+                "regulamento": etapa.get("regulamento", ""),
+                "created_at": etapa.get("created_at", datetime.now().isoformat()),
+            })
+            tids.append(tid)
+        naipe_tids[naipe] = tids
+
+    # equipes -> lista única com torneio_id
+    new_equipes = []
+    if isinstance(old_equipes, dict):
+        for naipe in ("masculino", "feminino"):
+            tids = naipe_tids.get(naipe, [])
+            auto_tid = tids[0] if len(tids) == 1 else None
+            for eq in old_equipes.get(naipe, []):
+                eq = dict(eq)
+                if eq.get("torneio_id") in (None, ""):
+                    eq["torneio_id"] = auto_tid
+                eq.setdefault("_naipe_legado", naipe)  # ajuda o admin a saber o naipe original
+                new_equipes.append(eq)
+    elif isinstance(old_equipes, list):
+        new_equipes = old_equipes
+
+    # grupos / jogos -> chaveados por torneio_id
+    new_grupos, new_jogos = {}, {}
+    for naipe in ("masculino", "feminino"):
+        tids = naipe_tids.get(naipe, [])
+        if not tids:
+            continue
+        target = tids[0]  # 1 torneio: é ele. >1: atribui ao mais antigo e loga.
+        g = old_grupos.get(naipe) if isinstance(old_grupos, dict) else None
+        j = old_jogos.get(naipe) if isinstance(old_jogos, dict) else None
+        tem_g = isinstance(g, dict) and (g.get("A") or g.get("B"))
+        if len(tids) > 1 and (tem_g or j):
+            log.warning(f"Migração: naipe '{naipe}' tem {len(tids)} torneios mas grupos/jogos eram "
+                        f"únicos por naipe; vinculados ao torneio mais antigo ({target}). Admin deve conferir.")
+        if tem_g:
+            new_grupos[target] = {"A": list(g.get("A", [])), "B": list(g.get("B", []))}
+        if j:
+            new_jogos[target] = j
+
+    # regulamento global default (pega o que houver do schema antigo)
+    reg_default = ""
+    if isinstance(old_reg, dict):
+        reg_default = old_reg.get("feminino") or old_reg.get("masculino") or ""
+
+    data["torneios"] = torneios
+    data["equipes"] = new_equipes
+    data["grupos"] = new_grupos
+    data["jogos"] = new_jogos
+    data["regulamento_default"] = data.get("regulamento_default") or reg_default
+    data.setdefault("config_default", json.loads(json.dumps(cfg_default)))
+    for k in ("etapas", "config", "regulamento"):
+        data.pop(k, None)
+    log.info(f"Migração multi-torneio concluída: {len(torneios)} torneios, {len(new_equipes)} equipes, "
+             f"{len(new_grupos)} c/ grupos, {len(new_jogos)} c/ jogos.")
 
 def _read_data_unlocked():
     if os.path.exists(DATA_FILE):
@@ -203,15 +335,13 @@ def _read_data_unlocked():
             data = json.load(f)
     else:
         data = json.loads(json.dumps(DEFAULT_DATA))
+    # MIGRAÇÃO multi-torneio (idempotente). Roda ANTES dos backfills, pois converte o schema
+    # antigo (por-naipe) no novo (por-torneio) que o resto do código passa a assumir.
+    _migrate_to_torneios(data)
     # Top-level migrations / defaults
     for key in DEFAULT_DATA:
         if key not in data:
             data[key] = DEFAULT_DATA[key] if not isinstance(DEFAULT_DATA[key], (dict, list)) else json.loads(json.dumps(DEFAULT_DATA[key]))
-    if "config" not in data:
-        data["config"] = json.loads(json.dumps(DEFAULT_DATA["config"]))
-    for n in ["masculino", "feminino"]:
-        if n not in data["config"]:
-            data["config"][n] = json.loads(json.dumps(DEFAULT_DATA["config"][n]))
     # Migration: legacy 'admin_password' (plaintext) -> admin_password_hash
     if data.get('admin_password') and not data.get('admin_password_hash'):
         data['admin_password_hash'] = generate_password_hash(data['admin_password'])
@@ -221,15 +351,12 @@ def _read_data_unlocked():
     if not data.get('admin_password_hash'):
         data['admin_password_hash'] = generate_password_hash(BOOTSTRAP_ADMIN_PASSWORD)
         log.info(f"Bootstrapped admin password hash from env/default")
-    # Migration: equipe.senha (plaintext) -> equipe.senha_hash
-    for naipe in ("masculino", "feminino"):
-        for eq in data.get('equipes', {}).get(naipe, []):
-            if eq.get('senha') and not eq.get('senha_hash'):
-                eq['senha_hash'] = generate_password_hash(eq['senha'])
-                # Keep plaintext in 'senha' temporarily so admin can show "current" creds once.
-                # New flow: senha is only kept for as long as it takes the admin to communicate it,
-                # then gets cleared on next reset-senha. We zero it out here.
-                eq.pop('senha', None)
+    # Migration: equipe.senha (plaintext) -> equipe.senha_hash (equipes agora é lista única)
+    for eq in data.get('equipes', []):
+        if eq.get('senha') and not eq.get('senha_hash'):
+            eq['senha_hash'] = generate_password_hash(eq['senha'])
+            # Zera o texto puro após derivar o hash (mesma política de antes).
+            eq.pop('senha', None)
     return data
 
 def _write_data_unlocked(data):
@@ -269,8 +396,49 @@ def do_backup():
         while len(backups) > 30:
             os.remove(os.path.join(BACKUP_DIR, backups.pop(0)))
 
-def get_config(data, naipe):
-    return data.get("config", {}).get(naipe, {"max_equipes": 8, "formato_jogos": "grupos"})
+def get_torneio(data, torneio_id):
+    """Retorna o dict do torneio pelo id (que já carrega formato_jogos/max_equipes/hora_inicio/
+    intervalo_min — funciona como a antiga 'config'), ou None se não existir."""
+    for t in data.get("torneios", []):
+        if t.get("id") == torneio_id:
+            return t
+    return None
+
+def torneios_do_naipe(data, naipe):
+    """Lista os torneios de um naipe (ordenados por data)."""
+    ts = [t for t in data.get("torneios", []) if t.get("naipe") == naipe]
+    return sorted(ts, key=lambda t: (t.get("data") or "", t.get("created_at") or ""))
+
+FORMATOS_VALIDOS = ("hexagonal", "grupos", "quad_corrido", "quad_decisao", "tri_corrido", "tri_final")
+
+def _clamp_int(v, default, lo, hi):
+    try:
+        return max(lo, min(hi, int(v)))
+    except (ValueError, TypeError):
+        return default
+
+def _valid_hora(s):
+    """Retorna 'HH:MM' normalizado se válido, senão None."""
+    try:
+        h, m = str(s).split(":")
+        h, m = int(h), int(m)
+        if 0 <= h <= 23 and 0 <= m <= 59:
+            return f"{h:02d}:{m:02d}"
+    except (ValueError, AttributeError):
+        pass
+    return None
+
+def find_equipe(data, equipe_id):
+    """Retorna o dict da equipe (inscrição) pelo id na lista única, ou None."""
+    for e in data.get("equipes", []):
+        if e.get("id") == equipe_id:
+            return e
+    return None
+
+def naipe_do_equipe(data, equipe):
+    """Naipe de uma equipe = naipe do seu torneio (ou None se órfã)."""
+    t = get_torneio(data, equipe.get("torneio_id")) if equipe else None
+    return t.get("naipe") if t else None
 
 def generate_team_password():
     chars = string.ascii_uppercase + string.digits
@@ -336,25 +504,25 @@ def team_or_admin_required(f):
     return wrapper
 
 # ---------- Auto-classify ----------
-def auto_classify_semis(data, naipe, test_mode=False):
-    """Auto-classifica semi/final.
-    test_mode=False: opera em jogos reais (data["jogos"][naipe], grupos data["grupos"][naipe]).
-    test_mode=True: opera só em jogos is_test e grupos data["grupos_test"][naipe]."""
+def auto_classify_semis(data, torneio_id, test_mode=False):
+    """Auto-classifica semi/final para um torneio.
+    test_mode=False: opera em jogos reais (data["jogos"][torneio_id], grupos data["grupos"][torneio_id]).
+    test_mode=True: opera só em jogos is_test e grupos data["grupos_test"][torneio_id]."""
     if test_mode:
         # Config padrão pra teste (vai vir do payload do setup)
         fmt = data.get("test_config", {}).get("formato_jogos", "hexagonal")
-        jogos = [j for j in data["jogos"].get(naipe, []) if j.get("is_test")]
-        grupos_src = data.get("grupos_test", {}).get(naipe, {"A": [], "B": []})
+        jogos = [j for j in data["jogos"].get(torneio_id, []) if j.get("is_test")]
+        grupos_src = data.get("grupos_test", {}).get(torneio_id, {"A": [], "B": []})
     else:
-        cfg = get_config(data, naipe)
-        fmt = cfg.get("formato_jogos", "grupos")
+        torneio = get_torneio(data, torneio_id) or {}
+        fmt = torneio.get("formato_jogos", "grupos")
         # Jogos de teste nunca participam de auto-classificação real
-        jogos = [j for j in data["jogos"].get(naipe, []) if not j.get("is_test")]
-        grupos_src = data["grupos"].get(naipe, {"A": [], "B": []})
+        jogos = [j for j in data["jogos"].get(torneio_id, []) if not j.get("is_test")]
+        grupos_src = data["grupos"].get(torneio_id, {"A": [], "B": []})
     if fmt == "hexagonal":
         hex_jogos = [j for j in jogos if j["fase"] == "hexagonal"]
         if not hex_jogos or not all(j["finalizado"] for j in hex_jogos):
-            _merge_jogos_back(data, naipe, jogos, test_mode)
+            _merge_jogos_back(data, torneio_id, jogos, test_mode)
             return
         eids = grupos_src.get("A", [])
         ranking = compute_ranking(eids, hex_jogos, "hexagonal")
@@ -370,7 +538,7 @@ def auto_classify_semis(data, naipe, test_mode=False):
         # Quadrangular com decisão: preenche disputa de 3º (3ºx4º) + final (1ºx2º)
         hex_jogos = [j for j in jogos if j["fase"] == "hexagonal"]
         if not hex_jogos or not all(j["finalizado"] for j in hex_jogos):
-            _merge_jogos_back(data, naipe, jogos, test_mode)
+            _merge_jogos_back(data, torneio_id, jogos, test_mode)
             return
         eids = grupos_src.get("A", [])
         ranking = compute_ranking(eids, hex_jogos, "hexagonal")
@@ -382,21 +550,21 @@ def auto_classify_semis(data, naipe, test_mode=False):
                 elif j["fase"] == "terceiro" and not j.get("equipe_a"):
                     j["equipe_a"] = ranking[2]["id"]
                     j["equipe_b"] = ranking[3]["id"]
-        _merge_jogos_back(data, naipe, jogos, test_mode)
+        _merge_jogos_back(data, torneio_id, jogos, test_mode)
         return
     elif fmt == "quad_corrido":
         # Sem fase eliminatória — nada a auto-classificar
-        _merge_jogos_back(data, naipe, jogos, test_mode)
+        _merge_jogos_back(data, torneio_id, jogos, test_mode)
         return
     else:
         # fmt == "grupos"
         grpA = [j for j in jogos if j["fase"] == "grupos" and j["grupo"] == "A"]
         grpB = [j for j in jogos if j["fase"] == "grupos" and j["grupo"] == "B"]
         if not grpA or not grpB:
-            _merge_jogos_back(data, naipe, jogos, test_mode)
+            _merge_jogos_back(data, torneio_id, jogos, test_mode)
             return
         if not all(j["finalizado"] for j in grpA) or not all(j["finalizado"] for j in grpB):
-            _merge_jogos_back(data, naipe, jogos, test_mode)
+            _merge_jogos_back(data, torneio_id, jogos, test_mode)
             return
         eidsA = grupos_src.get("A", [])
         eidsB = grupos_src.get("B", [])
@@ -424,13 +592,13 @@ def auto_classify_semis(data, naipe, test_mode=False):
             elif j["fase"] == "terceiro" and not j.get("equipe_a"):
                 j["equipe_a"] = loser1
                 j["equipe_b"] = loser2
-    _merge_jogos_back(data, naipe, jogos, test_mode)
+    _merge_jogos_back(data, torneio_id, jogos, test_mode)
 
-def _merge_jogos_back(data, naipe, jogos_modificados, test_mode):
+def _merge_jogos_back(data, torneio_id, jogos_modificados, test_mode):
     """Helper: faz merge dos jogos modificados de volta no data, preservando o que não foi tocado."""
     by_id = {j["id"]: j for j in jogos_modificados}
     merged = []
-    for j in data["jogos"].get(naipe, []):
+    for j in data["jogos"].get(torneio_id, []):
         if test_mode:
             if j.get("is_test") and j["id"] in by_id:
                 merged.append(by_id[j["id"]])
@@ -443,7 +611,7 @@ def _merge_jogos_back(data, naipe, jogos_modificados, test_mode):
                 merged.append(by_id[j["id"]])
             else:
                 merged.append(j)
-    data["jogos"][naipe] = merged
+    data["jogos"][torneio_id] = merged
 
 def compute_ranking(eids, jogos, fase):
     """Ranking with FIVB-style tiebreaker: points -> set ratio -> point ratio -> head-to-head."""
@@ -615,6 +783,7 @@ def auth_me():
         "is_admin": bool(session.get('is_admin')),
         "team_id": session.get('team_id'),
         "team_naipe": session.get('team_naipe'),
+        "team_torneio_id": session.get('team_torneio_id'),
         "team_nome": session.get('team_nome'),
     })
 
@@ -632,126 +801,162 @@ def auth_equipe():
     senha = body.get("senha", "").strip()
     if not login or not senha:
         return jsonify({"ok": False, "error": "Preencha login e senha"}), 400
-    for naipe in ["masculino", "feminino"]:
-        for eq in data["equipes"].get(naipe, []):
-            if eq.get("login") == login and eq.get("senha_hash") and check_password_hash(eq["senha_hash"], senha):
-                clear_attempts(ip)
-                session.clear()
-                session['team_id'] = eq["id"]
-                session['team_naipe'] = naipe
-                session['team_nome'] = eq["nome"]
-                session.permanent = True
-                return jsonify({"ok": True, "equipe_id": eq["id"], "naipe": naipe, "nome": eq["nome"],
-                    "pagamento_status": eq.get("pagamento_status", "pendente")})
+    for eq in data.get("equipes", []):
+        if eq.get("login") == login and eq.get("senha_hash") and check_password_hash(eq["senha_hash"], senha):
+            clear_attempts(ip)
+            naipe = naipe_do_equipe(data, eq)
+            session.clear()
+            session['team_id'] = eq["id"]
+            session['team_naipe'] = naipe
+            session['team_torneio_id'] = eq.get("torneio_id")
+            session['team_nome'] = eq["nome"]
+            session.permanent = True
+            return jsonify({"ok": True, "equipe_id": eq["id"], "naipe": naipe,
+                "torneio_id": eq.get("torneio_id"), "nome": eq["nome"],
+                "pagamento_status": eq.get("pagamento_status", "pendente")})
     record_failed_attempt(ip)
     attempts_left = MAX_ATTEMPTS - login_attempts.get(ip, {}).get("count", 0)
     if attempts_left <= 0:
         return jsonify({"ok": False, "error": f"Bloqueado por {LOCK_MINUTES} minutos."}), 429
     return jsonify({"ok": False, "error": f"Login ou senha incorretos. {attempts_left} tentativa(s)."}), 401
 
-# --- CONFIG ---
-@app.route('/api/config/<naipe>', methods=['GET'])
-def get_config_route(naipe):
-    return jsonify(get_config(load_data(), naipe))
+# --- TORNEIOS (era ETAPAS + CONFIG por naipe; config agora é embutida no torneio) ---
+def _torneio_publico(t):
+    """Torneio sem campos internos (prefixados com _), pra respostas públicas."""
+    return {k: v for k, v in t.items() if not k.startswith("_")}
 
-@app.route('/api/config/<naipe>', methods=['POST'])
+@app.route('/api/torneios', methods=['GET'])
+def get_torneios():
+    """Lista torneios. ?naipe=feminino filtra por naipe. Público."""
+    data = load_data()
+    naipe = request.args.get("naipe")
+    ts = data.get("torneios", [])
+    if naipe:
+        ts = [t for t in ts if t.get("naipe") == naipe]
+    ts = sorted(ts, key=lambda t: (t.get("data") or "", t.get("created_at") or ""))
+    return jsonify([_torneio_publico(t) for t in ts])
+
+@app.route('/api/torneios/<torneio_id>', methods=['GET'])
+def get_torneio_route(torneio_id):
+    t = get_torneio(load_data(), torneio_id)
+    if not t:
+        return jsonify({"error": "Torneio não encontrado"}), 404
+    return jsonify(_torneio_publico(t))
+
+@app.route('/api/torneios', methods=['POST'])
 @admin_required
-def set_config_route(naipe):
+def add_torneio():
     body = request.json or {}
+    naipe = body.get("naipe")
+    if naipe not in ("masculino", "feminino"):
+        return jsonify({"error": "naipe inválido (masculino|feminino)"}), 400
     def _do(data):
-        if "config" not in data:
-            data["config"] = json.loads(json.dumps(DEFAULT_DATA["config"]))
-        if naipe not in data["config"]:
-            data["config"][naipe] = {}
-        if "max_equipes" in body:
-            try:
-                data["config"][naipe]["max_equipes"] = max(2, min(32, int(body["max_equipes"])))
-            except (ValueError, TypeError):
-                pass
-        if "formato_jogos" in body and body["formato_jogos"] in ("hexagonal", "grupos", "quad_corrido", "quad_decisao"):
-            data["config"][naipe]["formato_jogos"] = body["formato_jogos"]
-        if "hora_inicio" in body:
-            # Valida formato HH:MM
-            try:
-                h, m = body["hora_inicio"].split(":")
-                h, m = int(h), int(m)
-                if 0 <= h <= 23 and 0 <= m <= 59:
-                    data["config"][naipe]["hora_inicio"] = f"{h:02d}:{m:02d}"
-            except (ValueError, AttributeError):
-                pass
-        if "intervalo_min" in body:
-            try:
-                v = int(body["intervalo_min"])
-                if 15 <= v <= 240:  # entre 15 min e 4 horas
-                    data["config"][naipe]["intervalo_min"] = v
-            except (ValueError, TypeError):
-                pass
-        return data["config"][naipe]
-    return jsonify(update_data(_do))
-
-# --- ETAPAS ---
-@app.route('/api/etapas/<naipe>', methods=['GET'])
-def get_etapas(naipe):
-    return jsonify(load_data()["etapas"].get(naipe, []))
-
-@app.route('/api/etapas/<naipe>', methods=['POST'])
-@admin_required
-def add_etapa(naipe):
-    body = request.json or {}
-    def _do(data):
-        etapa = {
-            "id": str(uuid.uuid4())[:8], "nome": body.get("nome", ""),
-            "local": body.get("local", ""), "data": body.get("data", ""),
-            "endereco": body.get("endereco", ""), "categoria": body.get("categoria", ""),
-            "formato": body.get("formato", ""), "horario": body.get("horario", ""),
-            "created_at": datetime.now().isoformat()
+        cfgd = data.get("config_default", DEFAULT_DATA["config_default"])
+        fmt = body.get("formato_jogos")
+        if fmt not in FORMATOS_VALIDOS:
+            fmt = cfgd["formato_jogos"]
+        torneio = {
+            "id": str(uuid.uuid4())[:8],
+            "naipe": naipe,
+            "nome": body.get("nome", ""),
+            "categoria": body.get("categoria", ""),
+            "local": body.get("local", ""),
+            "endereco": body.get("endereco", ""),
+            "data": body.get("data", ""),
+            "horario": body.get("horario", "") or cfgd["hora_inicio"],
+            "formato_jogos": fmt,
+            "max_equipes": _clamp_int(body.get("max_equipes"), cfgd["max_equipes"], 2, 32),
+            "hora_inicio": _valid_hora(body.get("hora_inicio")) or cfgd["hora_inicio"],
+            "intervalo_min": _clamp_int(body.get("intervalo_min"), cfgd["intervalo_min"], 15, 240),
+            "taxa": body.get("taxa", 0),
+            "adiado": bool(body.get("adiado", False)),
+            "regulamento": body.get("regulamento", ""),
+            "created_at": datetime.now().isoformat(),
         }
-        data["etapas"].setdefault(naipe, []).append(etapa)
-        return etapa
+        data.setdefault("torneios", []).append(torneio)
+        return torneio
     return jsonify(update_data(_do)), 201
 
-@app.route('/api/etapas/<naipe>/<etapa_id>', methods=['PUT'])
+@app.route('/api/torneios/<torneio_id>', methods=['PUT'])
 @admin_required
-def update_etapa(naipe, etapa_id):
+def update_torneio(torneio_id):
+    """Atualiza torneio, incluindo a config embutida (formato/hora/intervalo/max)."""
     body = request.json or {}
+    if not get_torneio(load_data(), torneio_id):
+        return jsonify({"error": "Torneio não encontrado"}), 404
     def _do(data):
-        for etapa in data["etapas"].get(naipe, []):
-            if etapa["id"] == etapa_id:
-                for k in ["nome","local","data","endereco","categoria","formato","horario"]:
-                    if k in body: etapa[k] = body[k]
-                break
-        return {"ok": True}
-    return jsonify(update_data(_do))
+        t = get_torneio(data, torneio_id)
+        if not t:
+            return None
+        for k in ("nome", "categoria", "local", "endereco", "data", "horario", "regulamento", "taxa"):
+            if k in body:
+                t[k] = body[k]
+        if "naipe" in body and body["naipe"] in ("masculino", "feminino"):
+            t["naipe"] = body["naipe"]
+        if "formato_jogos" in body and body["formato_jogos"] in FORMATOS_VALIDOS:
+            t["formato_jogos"] = body["formato_jogos"]
+        if "max_equipes" in body:
+            t["max_equipes"] = _clamp_int(body.get("max_equipes"), t.get("max_equipes", 8), 2, 32)
+        if "hora_inicio" in body:
+            hv = _valid_hora(body.get("hora_inicio"))
+            if hv:
+                t["hora_inicio"] = hv
+        if "intervalo_min" in body:
+            t["intervalo_min"] = _clamp_int(body.get("intervalo_min"), t.get("intervalo_min", 75), 15, 240)
+        if "adiado" in body:
+            t["adiado"] = bool(body["adiado"])
+        return t
+    res = update_data(_do)
+    if res is None:
+        return jsonify({"error": "Torneio não encontrado"}), 404
+    return jsonify(res)
 
-@app.route('/api/etapas/<naipe>/<etapa_id>', methods=['DELETE'])
+@app.route('/api/torneios/<torneio_id>', methods=['DELETE'])
 @admin_required
-def delete_etapa(naipe, etapa_id):
+def delete_torneio(torneio_id):
+    """Remove o torneio e seus grupos/jogos. Equipes inscritas viram órfãs (torneio_id=None)
+    pra não perder inscrição/pagamento — o admin reatribui ou apaga manualmente."""
     def _do(data):
-        data["etapas"][naipe] = [e for e in data["etapas"].get(naipe, []) if e["id"] != etapa_id]
-        return {"ok": True}
+        data["torneios"] = [t for t in data.get("torneios", []) if t.get("id") != torneio_id]
+        data.get("grupos", {}).pop(torneio_id, None)
+        data.get("jogos", {}).pop(torneio_id, None)
+        orfas = 0
+        for e in data.get("equipes", []):
+            if e.get("torneio_id") == torneio_id:
+                e["torneio_id"] = None
+                orfas += 1
+        return {"ok": True, "equipes_orfas": orfas}
     return jsonify(update_data(_do))
 
 # --- EQUIPES ---
-@app.route('/api/equipes/<naipe>', methods=['GET'])
-def get_equipes(naipe):
+@app.route('/api/equipes', methods=['GET'])
+def get_equipes():
+    """Público. ?torneio_id=<id> filtra por torneio. Sem is_test, sem dados sensíveis."""
     data = load_data()
-    equipes = data["equipes"].get(naipe, [])
+    tid = request.args.get("torneio_id")
     public = []
-    for e in equipes:
+    for e in data.get("equipes", []):
         if e.get("is_test"):
             continue  # Equipes de teste nunca aparecem em endpoint público
+        if tid and e.get("torneio_id") != tid:
+            continue
         pe = {k: v for k, v in e.items() if k not in ("senha", "senha_hash", "login")}
         public.append(pe)
     return jsonify(public)
 
-@app.route('/api/equipes/<naipe>/admin', methods=['GET'])
+@app.route('/api/equipes/admin', methods=['GET'])
 @admin_required
-def get_equipes_admin(naipe):
-    """Admin view. Excludes senha_hash; senhas em texto puro nunca são retornadas.
-    Retorna TODAS as equipes incluindo is_test, pra admin operar Modo Teste."""
+def get_equipes_admin():
+    """Admin view. Exclui senha_hash. Retorna TODAS as equipes incluindo is_test.
+    ?torneio_id=<id> filtra por torneio; ?torneio_id=null retorna as sem torneio (órfãs)."""
     data = load_data()
+    tid = request.args.get("torneio_id")
     out = []
-    for e in data["equipes"].get(naipe, []):
+    for e in data.get("equipes", []):
+        if tid is not None:
+            want = None if tid in ("", "null", "none") else tid
+            if e.get("torneio_id") != want:
+                continue
         pe = {k: v for k, v in e.items() if k != "senha_hash"}
         out.append(pe)
     return jsonify(out)
@@ -773,12 +978,13 @@ def inscricao_aberta_back():
         log.warning(f"inscricao_aberta_back parse failed: {e}")
         return True
 
-@app.route('/api/equipes/<naipe>', methods=['POST'])
-def add_equipe(naipe):
+@app.route('/api/equipes', methods=['POST'])
+def add_equipe():
     is_admin = bool(session.get('is_admin'))
     if not is_admin and not inscricao_aberta_back():
         return jsonify({"error": "Inscrições ainda não estão abertas"}), 403
     body = request.json or {}
+    torneio_id = body.get("torneio_id") or None
     nome = (body.get("nome", "") or "").strip()
     if not nome:
         return jsonify({"error": "Nome obrigatório"}), 400
@@ -789,15 +995,23 @@ def add_equipe(naipe):
     plain_password = None  # only kept inside this request to return to user once
     def _do(data):
         nonlocal plain_password
-        equipes = data["equipes"].setdefault(naipe, [])
-        cfg = get_config(data, naipe)
-        max_eq = cfg.get("max_equipes", 8)
-        # Equipes de teste não contam no máximo
-        equipes_reais = [e for e in equipes if not e.get("is_test")]
-        if len(equipes_reais) >= max_eq:
-            return ("max", max_eq)
+        torneio = get_torneio(data, torneio_id) if torneio_id else None
+        # Inscrição pública exige torneio válido (o form pré-seleciona pela URL).
+        # Admin pode criar sem torneio (equipe fica órfã pra atribuir depois).
+        if torneio_id and not torneio:
+            return ("notorneio", None)
+        if not is_admin and not torneio:
+            return ("notorneio", None)
+        equipes = data.setdefault("equipes", [])
+        if torneio:
+            max_eq = torneio.get("max_equipes", 8)
+            # Só equipes reais DO MESMO torneio contam pro máximo (teste nunca conta).
+            reais_no_torneio = [e for e in equipes
+                                if not e.get("is_test") and e.get("torneio_id") == torneio_id]
+            if len(reais_no_torneio) >= max_eq:
+                return ("max", max_eq)
         login = generate_team_login(nome)
-        existing_logins = {e.get("login", "") for e in equipes}
+        existing_logins = {e.get("login", "") for e in equipes}  # login é único globalmente
         base_login = login
         counter = 1
         while login in existing_logins:
@@ -805,7 +1019,7 @@ def add_equipe(naipe):
             counter += 1
         plain_password = generate_team_password()
         equipe = {
-            "id": str(uuid.uuid4())[:8], "nome": nome,
+            "id": str(uuid.uuid4())[:8], "torneio_id": torneio_id, "nome": nome,
             "responsavel": responsavel, "telefone": telefone,
             "login": login,
             "senha_hash": generate_password_hash(plain_password),
@@ -816,7 +1030,9 @@ def add_equipe(naipe):
         return ("ok", equipe)
     res = update_data(_do)
     if res and res[0] == "max":
-        return jsonify({"error": f"Máximo de {res[1]} equipes atingido"}), 400
+        return jsonify({"error": f"Máximo de {res[1]} equipes atingido neste torneio"}), 400
+    if res and res[0] == "notorneio":
+        return jsonify({"error": "Selecione um torneio válido para a inscrição"}), 400
     do_backup()
     equipe = res[1]
     # Public-safe response: include plaintext password ONLY here, in the create response.
@@ -824,37 +1040,56 @@ def add_equipe(naipe):
     out["senha"] = plain_password
     return jsonify(out), 201
 
-@app.route('/api/equipes/<naipe>/<equipe_id>/pagamento', methods=['POST'])
+@app.route('/api/equipes/<equipe_id>/mover', methods=['POST'])
 @admin_required
-def update_pagamento(naipe, equipe_id):
+def mover_equipe(equipe_id):
+    """Move uma inscrição de um torneio para outro (body: {torneio_id_novo}).
+    torneio_id_novo pode ser null/vazio para deixar a equipe órfã (sem torneio)."""
+    body = request.json or {}
+    novo = body.get("torneio_id_novo") or body.get("torneio_id") or None
+    def _do(data):
+        eq = find_equipe(data, equipe_id)
+        if not eq:
+            return None
+        if novo and not get_torneio(data, novo):
+            return ("notorneio", None)
+        eq["torneio_id"] = novo
+        return ("ok", eq.get("nome"), novo)
+    res = update_data(_do)
+    if res is None:
+        return jsonify({"error": "Equipe não encontrada"}), 404
+    if res[0] == "notorneio":
+        return jsonify({"error": "Torneio de destino inválido"}), 400
+    return jsonify({"ok": True, "equipe": res[1], "torneio_id": res[2]})
+
+@app.route('/api/equipes/<equipe_id>/pagamento', methods=['POST'])
+@admin_required
+def update_pagamento(equipe_id):
     body = request.json or {}
     def _do(data):
-        for eq in data["equipes"].get(naipe, []):
-            if eq["id"] == equipe_id:
-                if body.get("pagamento_status") in ("aprovado", "pendente"):
-                    eq["pagamento_status"] = body["pagamento_status"]
-                break
+        eq = find_equipe(data, equipe_id)
+        if eq and body.get("pagamento_status") in ("aprovado", "pendente"):
+            eq["pagamento_status"] = body["pagamento_status"]
         return {"ok": True}
     return jsonify(update_data(_do))
 
-@app.route('/api/equipes/<naipe>/<equipe_id>/comprovante', methods=['POST'])
+@app.route('/api/equipes/<equipe_id>/comprovante', methods=['POST'])
 @team_or_admin_required
-def upload_comprovante(naipe, equipe_id):
+def upload_comprovante(equipe_id):
     if 'file' not in request.files:
         return jsonify({"error": "Nenhum arquivo enviado"}), 400
     file = request.files['file']
     if file.filename == '':
         return jsonify({"error": "Arquivo vazio"}), 400
     ext = _safe_ext(file.filename, ALLOWED_COMPROVANTE_EXT, 'jpg')
-    filename = secure_filename(f"comprovante_{naipe}_{equipe_id}.{ext}")
+    filename = secure_filename(f"comprovante_{equipe_id}.{ext}")
     filepath = os.path.join(UPLOADS_DIR, filename)
     ensure_dirs()
     file.save(filepath)
     def _do(data):
-        for eq in data["equipes"].get(naipe, []):
-            if eq["id"] == equipe_id:
-                eq["comprovante"] = filename
-                break
+        eq = find_equipe(data, equipe_id)
+        if eq:
+            eq["comprovante"] = filename
         return {"ok": True, "filename": filename}
     return jsonify(update_data(_do))
 
@@ -865,9 +1100,9 @@ def serve_upload(filename):
     return send_from_directory(UPLOADS_DIR, safe)
 
 # --- FOTOS (Team + MVP) ---
-@app.route('/api/equipes/<naipe>/<equipe_id>/logo', methods=['POST'])
+@app.route('/api/equipes/<equipe_id>/logo', methods=['POST'])
 @team_or_admin_required
-def upload_logo_equipe(naipe, equipe_id):
+def upload_logo_equipe(equipe_id):
     if 'file' not in request.files:
         return jsonify({"error": "Nenhum arquivo enviado"}), 400
     file = request.files['file']
@@ -875,7 +1110,7 @@ def upload_logo_equipe(naipe, equipe_id):
         return jsonify({"error": "Arquivo vazio"}), 400
     ensure_dirs()
     ext = _safe_ext(file.filename, ALLOWED_IMAGE_EXT, 'png')
-    filename = secure_filename(f"logo_equipe_{naipe}_{equipe_id}.{ext}")
+    filename = secure_filename(f"logo_equipe_{equipe_id}.{ext}")
     filepath = os.path.join(UPLOADS_DIR, filename)
     try:
         img = Image.open(file.stream)
@@ -896,27 +1131,25 @@ def upload_logo_equipe(naipe, equipe_id):
             log.error(f"logo raw save failed: {e2}")
             return jsonify({"error": "Falha no upload"}), 500
     def _do(data):
-        for eq in data["equipes"].get(naipe, []):
-            if eq["id"] == equipe_id:
-                eq["logo"] = filename
-                break
+        eq = find_equipe(data, equipe_id)
+        if eq:
+            eq["logo"] = filename
         return {"ok": True, "filename": filename}
     return jsonify(update_data(_do))
 
-@app.route('/api/equipes/<naipe>/<equipe_id>/foto', methods=['POST'])
+@app.route('/api/equipes/<equipe_id>/foto', methods=['POST'])
 @admin_required
-def upload_foto_equipe(naipe, equipe_id):
+def upload_foto_equipe(equipe_id):
     if 'file' not in request.files:
         return jsonify({"error": "Nenhum arquivo enviado"}), 400
     file = request.files['file']
     if file.filename == '':
         return jsonify({"error": "Arquivo vazio"}), 400
-    filename = save_photo_with_watermark(file, f"foto_equipe_{naipe}_{equipe_id}")
+    filename = save_photo_with_watermark(file, f"foto_equipe_{equipe_id}")
     def _do(data):
-        for eq in data["equipes"].get(naipe, []):
-            if eq["id"] == equipe_id:
-                eq["foto"] = filename
-                break
+        eq = find_equipe(data, equipe_id)
+        if eq:
+            eq["foto"] = filename
         return {"ok": True, "filename": filename}
     return jsonify(update_data(_do))
 
@@ -963,12 +1196,12 @@ def delete_destaque(destaque_id):
 def get_galeria():
     data = load_data()
     galeria = []
-    for naipe in ["feminino", "masculino"]:
-        for eq in data["equipes"].get(naipe, []):
-            if eq.get("is_test"):
-                continue
-            if eq.get("foto"):
-                galeria.append({"tipo": "equipe", "nome": eq["nome"], "naipe": naipe, "foto": eq["foto"]})
+    for eq in data.get("equipes", []):
+        if eq.get("is_test"):
+            continue
+        if eq.get("foto"):
+            galeria.append({"tipo": "equipe", "nome": eq["nome"],
+                            "naipe": naipe_do_equipe(data, eq) or "", "foto": eq["foto"]})
     for d in data.get("destaques", []):
         if d.get("foto"):
             galeria.append({"tipo": "mvp", "nome": d.get("nome_atleta", ""), "equipe": d.get("equipe", ""),
@@ -1013,32 +1246,36 @@ def delete_foto_geral(foto_id):
         return {"ok": True}
     return jsonify(update_data(_do))
 
-@app.route('/api/equipes/<naipe>/<equipe_id>/reset-senha', methods=['POST'])
+@app.route('/api/equipes/<equipe_id>/reset-senha', methods=['POST'])
 @admin_required
-def reset_equipe_senha(naipe, equipe_id):
+def reset_equipe_senha(equipe_id):
     new_password = generate_team_password()
     out = {"found": False}
     def _do(data):
-        for eq in data["equipes"].get(naipe, []):
-            if eq["id"] == equipe_id:
-                eq["senha_hash"] = generate_password_hash(new_password)
-                out["found"] = True
-                out["login"] = eq.get("login", "")
-                break
+        eq = find_equipe(data, equipe_id)
+        if eq:
+            eq["senha_hash"] = generate_password_hash(new_password)
+            out["found"] = True
+            out["login"] = eq.get("login", "")
         return None
     update_data(_do)
     if not out["found"]:
         return jsonify({"error": "Equipe não encontrada"}), 404
     return jsonify({"ok": True, "nova_senha": new_password, "login": out["login"]})
 
-@app.route('/api/equipes/<naipe>/<equipe_id>', methods=['DELETE'])
+@app.route('/api/equipes/<equipe_id>', methods=['DELETE'])
 @admin_required
-def delete_equipe(naipe, equipe_id):
+def delete_equipe(equipe_id):
     def _do(data):
-        data["equipes"][naipe] = [e for e in data["equipes"].get(naipe, []) if e["id"] != equipe_id]
-        for grupo in ["A", "B"]:
-            if grupo in data.get("grupos", {}).get(naipe, {}):
-                data["grupos"][naipe][grupo] = [eid for eid in data["grupos"][naipe][grupo] if eid != equipe_id]
+        eq = find_equipe(data, equipe_id)
+        tid = eq.get("torneio_id") if eq else None
+        data["equipes"] = [e for e in data.get("equipes", []) if e.get("id") != equipe_id]
+        # remove a equipe das listas de grupos do SEU torneio
+        g = data.get("grupos", {}).get(tid) if tid else None
+        if isinstance(g, dict):
+            for grupo in ("A", "B"):
+                if grupo in g:
+                    g[grupo] = [eid for eid in g[grupo] if eid != equipe_id]
         if equipe_id in data.get("atletas", {}):
             del data["atletas"][equipe_id]
         return {"ok": True}
@@ -1075,12 +1312,7 @@ def add_atleta(equipe_id):
     # Block atletas if pagamento not approved (unless admin)
     if not session.get('is_admin'):
         data = load_data()
-        eq = None
-        for naipe in ("masculino", "feminino"):
-            for e in data.get('equipes', {}).get(naipe, []):
-                if e['id'] == equipe_id:
-                    eq = e; break
-            if eq: break
+        eq = find_equipe(data, equipe_id)
         if not eq:
             return jsonify({"error": "Equipe não encontrada"}), 404
         if eq.get('pagamento_status') != 'aprovado':
@@ -1110,13 +1342,14 @@ def delete_atleta(equipe_id, atleta_id):
     return jsonify(update_data(_do))
 
 # --- CARTELÃO ---
-@app.route('/api/cartelao/<naipe>/<equipe_id>')
+@app.route('/api/cartelao/<equipe_id>')
 @team_or_admin_required
-def gerar_cartelao(naipe, equipe_id):
+def gerar_cartelao(equipe_id):
     data = load_data()
-    equipe = next((e for e in data["equipes"].get(naipe, []) if e["id"] == equipe_id), None)
+    equipe = find_equipe(data, equipe_id)
     if not equipe:
         return jsonify({"error": "Equipe não encontrada"}), 404
+    naipe = naipe_do_equipe(data, equipe) or ""
     atletas = data.get("atletas", {}).get(equipe_id, [])
     logo_b64 = ""
     logo_path = os.path.join(app.static_folder, 'logo.jpeg')
@@ -1170,84 +1403,85 @@ td{{padding:10px 6px;border-bottom:1px solid #f4f4f5}}tr:last-child td{{border-b
 </div><script>window.onload=function(){{window.print()}}</script></body></html>"""
     return make_response(html)
 
-# --- GRUPOS ---
-@app.route('/api/grupos/<naipe>', methods=['GET'])
-def get_grupos(naipe):
-    return jsonify(load_data()["grupos"].get(naipe, {"A": [], "B": []}))
+# --- GRUPOS (chaveados por torneio_id) ---
+@app.route('/api/grupos/<torneio_id>', methods=['GET'])
+def get_grupos(torneio_id):
+    return jsonify(load_data()["grupos"].get(torneio_id, {"A": [], "B": []}))
 
-@app.route('/api/grupos/<naipe>', methods=['POST'])
+@app.route('/api/grupos/<torneio_id>', methods=['POST'])
 @admin_required
-def set_grupos(naipe):
+def set_grupos(torneio_id):
     body = request.json or {}
     def _do(data):
-        data["grupos"][naipe] = {"A": list(body.get("A", [])), "B": list(body.get("B", []))}
-        return data["grupos"][naipe]
+        data["grupos"][torneio_id] = {"A": list(body.get("A", [])), "B": list(body.get("B", []))}
+        return data["grupos"][torneio_id]
     return jsonify(update_data(_do))
 
-@app.route('/api/grupos/<naipe>/sorteio', methods=['POST'])
+@app.route('/api/grupos/<torneio_id>/sorteio', methods=['POST'])
 @admin_required
-def sortear_grupos(naipe):
+def sortear_grupos(torneio_id):
     def _do(data):
-        cfg = get_config(data, naipe)
-        fmt = cfg.get("formato_jogos", "grupos")
-        # Ignora equipes de teste no sorteio real
-        ids = [e["id"] for e in data["equipes"].get(naipe, []) if not e.get("is_test")]
+        torneio = get_torneio(data, torneio_id) or {}
+        fmt = torneio.get("formato_jogos", "grupos")
+        # Só equipes reais DESTE torneio entram no sorteio (teste nunca).
+        ids = [e["id"] for e in data.get("equipes", [])
+               if e.get("torneio_id") == torneio_id and not e.get("is_test")]
         random.shuffle(ids)
-        # Hexagonal e quad: todos em A
-        if fmt in ("hexagonal", "quad_corrido", "quad_decisao"):
-            data["grupos"][naipe] = {"A": ids, "B": []}
+        # Formatos de grupo único (todos em A): hexagonal, quadrangular e triangular.
+        if fmt in ("hexagonal", "quad_corrido", "quad_decisao", "tri_corrido", "tri_final"):
+            data["grupos"][torneio_id] = {"A": ids, "B": []}
         else:
             half = len(ids) // 2
-            data["grupos"][naipe] = {"A": ids[:half], "B": ids[half:]}
-        return data["grupos"][naipe]
+            data["grupos"][torneio_id] = {"A": ids[:half], "B": ids[half:]}
+        return data["grupos"][torneio_id]
     return jsonify(update_data(_do))
 
-# --- JOGOS ---
-@app.route('/api/jogos/<naipe>', methods=['GET'])
-def get_jogos(naipe):
-    jogos = load_data()["jogos"].get(naipe, [])
+# --- JOGOS (chaveados por torneio_id) ---
+@app.route('/api/jogos/<torneio_id>', methods=['GET'])
+def get_jogos(torneio_id):
+    jogos = load_data()["jogos"].get(torneio_id, [])
     return jsonify([j for j in jogos if not j.get("is_test")])
 
-@app.route('/api/jogos/<naipe>/admin', methods=['GET'])
+@app.route('/api/jogos/<torneio_id>/admin', methods=['GET'])
 @admin_required
-def get_jogos_admin(naipe):
+def get_jogos_admin(torneio_id):
     """Admin vê TODOS os jogos, incluindo is_test, pra poder operar o modo teste."""
-    return jsonify(load_data()["jogos"].get(naipe, []))
+    return jsonify(load_data()["jogos"].get(torneio_id, []))
 
-@app.route('/api/jogos/<naipe>/gerar', methods=['POST'])
+@app.route('/api/jogos/<torneio_id>/gerar', methods=['POST'])
 @admin_required
-def gerar_jogos(naipe):
+def gerar_jogos(torneio_id):
     def _do(data):
-        cfg = get_config(data, naipe)
-        fmt = cfg.get("formato_jogos", "grupos")
-        hora_inicio = cfg.get("hora_inicio", "08:30")
-        intervalo_min = int(cfg.get("intervalo_min", 75))
-        grupos = data["grupos"].get(naipe, {"A": [], "B": []})
+        torneio = get_torneio(data, torneio_id) or {}
+        fmt = torneio.get("formato_jogos", "grupos")
+        hora_inicio = torneio.get("hora_inicio", "08:30")
+        intervalo_min = int(torneio.get("intervalo_min", 75))
+        grupos = data["grupos"].get(torneio_id, {"A": [], "B": []})
         jogos = _build_jogos_from_grupos(grupos, fmt, is_test=False,
                                           hora_inicio=hora_inicio, intervalo_min=intervalo_min)
         # Preserva jogos de teste (is_test) que possam existir
-        jogos_teste_existentes = [j for j in data["jogos"].get(naipe, []) if j.get("is_test")]
-        data["jogos"][naipe] = jogos + jogos_teste_existentes
+        jogos_teste_existentes = [j for j in data["jogos"].get(torneio_id, []) if j.get("is_test")]
+        data["jogos"][torneio_id] = jogos + jogos_teste_existentes
         return jogos
     return jsonify(update_data(_do))
 
-@app.route('/api/jogos/<naipe>/atualizar-horarios', methods=['POST'])
+@app.route('/api/jogos/<torneio_id>/atualizar-horarios', methods=['POST'])
 @admin_required
-def atualizar_horarios(naipe):
-    """Aplica horários sequenciais (a partir da config) à tabela existente,
+def atualizar_horarios(torneio_id):
+    """Aplica horários sequenciais (a partir da config do torneio) à tabela existente,
     SEM regerar os jogos. Mantém placares e ordem dos jogos."""
     def _do(data):
-        cfg = get_config(data, naipe)
-        hora_inicio = cfg.get("hora_inicio", "08:30")
-        intervalo_min = int(cfg.get("intervalo_min", 75))
+        torneio = get_torneio(data, torneio_id) or {}
+        hora_inicio = torneio.get("hora_inicio", "08:30")
+        intervalo_min = int(torneio.get("intervalo_min", 75))
         # Pega só jogos reais (não teste)
-        reais = [j for j in data["jogos"].get(naipe, []) if not j.get("is_test")]
-        testes = [j for j in data["jogos"].get(naipe, []) if j.get("is_test")]
+        reais = [j for j in data["jogos"].get(torneio_id, []) if not j.get("is_test")]
+        testes = [j for j in data["jogos"].get(torneio_id, []) if j.get("is_test")]
         if not reais:
             return {"ok": False, "error": "Nenhuma tabela gerada ainda"}
         # Aplica na ordem atual (não reordena, só seta horário)
         _aplicar_horarios(reais, hora_inicio=hora_inicio, intervalo_min=intervalo_min)
-        data["jogos"][naipe] = reais + testes
+        data["jogos"][torneio_id] = reais + testes
         return {"ok": True, "count": len(reais)}
     res = update_data(_do)
     return jsonify(res)
@@ -1395,13 +1629,13 @@ def _build_jogos_from_grupos(grupos, fmt, is_test=False, hora_inicio="08:30", in
     return todos
 
 
-@app.route('/api/jogos/<naipe>/<jogo_id>', methods=['PUT'])
+@app.route('/api/jogos/<torneio_id>/<jogo_id>', methods=['PUT'])
 @admin_required
-def update_jogo(naipe, jogo_id):
+def update_jogo(torneio_id, jogo_id):
     body = request.json or {}
     def _do(data):
         is_test_jogo = False
-        for jogo in data["jogos"].get(naipe, []):
+        for jogo in data["jogos"].get(torneio_id, []):
             if jogo["id"] == jogo_id:
                 is_test_jogo = bool(jogo.get("is_test"))
                 for k in ["sets_a","sets_b","parciais","finalizado"]:
@@ -1413,7 +1647,7 @@ def update_jogo(naipe, jogo_id):
                     jogo["em_andamento"] = False
                     jogo["set_atual"] = None
                 break
-        auto_classify_semis(data, naipe, test_mode=is_test_jogo)
+        auto_classify_semis(data, torneio_id, test_mode=is_test_jogo)
         return {"ok": True}
     res = update_data(_do)
     do_backup()
@@ -1424,20 +1658,20 @@ def update_jogo(naipe, jogo_id):
 # Classificação NÃO conta jogos não finalizados — auto_classify_semis ignora em_andamento.
 # Múltiplos admins simultâneos: last-write-wins (ok pra placar manual a 1 click/seg).
 
-def _find_jogo(data, naipe, jogo_id):
-    for j in data["jogos"].get(naipe, []):
+def _find_jogo(data, torneio_id, jogo_id):
+    for j in data["jogos"].get(torneio_id, []):
         if j["id"] == jogo_id:
             return j
     return None
 
-@app.route('/api/jogos/<naipe>/<jogo_id>/iniciar', methods=['POST'])
+@app.route('/api/jogos/<torneio_id>/<jogo_id>/iniciar', methods=['POST'])
 @admin_required
-def iniciar_jogo_aovivo(naipe, jogo_id):
+def iniciar_jogo_aovivo(torneio_id, jogo_id):
     """Coloca o jogo em modo 'em andamento'. Reseta set_atual para próximo set.
     Body opcional: equipe_a, equipe_b (se ainda não definidos), lado_esq (id da equipe à esquerda)."""
     body = request.json or {}
     def _do(data):
-        jogo = _find_jogo(data, naipe, jogo_id)
+        jogo = _find_jogo(data, torneio_id, jogo_id)
         if not jogo:
             return {"error": "Jogo não encontrado"}
         if jogo.get("finalizado"):
@@ -1485,14 +1719,14 @@ def iniciar_jogo_aovivo(naipe, jogo_id):
         return jsonify(res), 400
     return jsonify(res)
 
-@app.route('/api/jogos/<naipe>/<jogo_id>/lado', methods=['POST'])
+@app.route('/api/jogos/<torneio_id>/<jogo_id>/lado', methods=['POST'])
 @admin_required
-def trocar_lado_aovivo(naipe, jogo_id):
+def trocar_lado_aovivo(torneio_id, jogo_id):
     """Troca o lado das equipes no set atual (admin pode invocar manualmente,
     ex: confirmar tie-break com lado diferente)."""
     body = request.json or {}
     def _do(data):
-        jogo = _find_jogo(data, naipe, jogo_id)
+        jogo = _find_jogo(data, torneio_id, jogo_id)
         if not jogo:
             return {"error": "Jogo não encontrado"}
         if not jogo.get("em_andamento") or not jogo.get("set_atual"):
@@ -1508,9 +1742,9 @@ def trocar_lado_aovivo(naipe, jogo_id):
         return jsonify(res), 400
     return jsonify(res)
 
-@app.route('/api/jogos/<naipe>/<jogo_id>/pontos', methods=['POST'])
+@app.route('/api/jogos/<torneio_id>/<jogo_id>/pontos', methods=['POST'])
 @admin_required
-def atualizar_pontos_aovivo(naipe, jogo_id):
+def atualizar_pontos_aovivo(torneio_id, jogo_id):
     """Atualiza pontos do set atual. Body: {pontos_a, pontos_b}.
     Idempotente: recebe o estado, não incrementos.
     Tie-break (set 3+): troca automática de lado quando QUALQUER equipe atinge 8 pontos."""
@@ -1523,7 +1757,7 @@ def atualizar_pontos_aovivo(naipe, jogo_id):
     pa = max(0, min(99, pa))
     pb = max(0, min(99, pb))
     def _do(data):
-        jogo = _find_jogo(data, naipe, jogo_id)
+        jogo = _find_jogo(data, torneio_id, jogo_id)
         if not jogo:
             return {"error": "Jogo não encontrado"}
         if not jogo.get("em_andamento"):
@@ -1551,13 +1785,13 @@ def atualizar_pontos_aovivo(naipe, jogo_id):
         return jsonify(res), 400
     return jsonify(res)
 
-@app.route('/api/jogos/<naipe>/<jogo_id>/encerrar-set', methods=['POST'])
+@app.route('/api/jogos/<torneio_id>/<jogo_id>/encerrar-set', methods=['POST'])
 @admin_required
-def encerrar_set_aovivo(naipe, jogo_id):
+def encerrar_set_aovivo(torneio_id, jogo_id):
     """Fecha o set atual: registra na parcial, soma 1 set pra quem ganhou,
     abre o próximo set zerado (com troca automática de lado se for set 1→2)."""
     def _do(data):
-        jogo = _find_jogo(data, naipe, jogo_id)
+        jogo = _find_jogo(data, torneio_id, jogo_id)
         if not jogo:
             return {"error": "Jogo não encontrado"}
         if not jogo.get("em_andamento"):
@@ -1608,12 +1842,12 @@ def encerrar_set_aovivo(naipe, jogo_id):
         return jsonify(res), 400
     return jsonify(res)
 
-@app.route('/api/jogos/<naipe>/<jogo_id>/encerrar', methods=['POST'])
+@app.route('/api/jogos/<torneio_id>/<jogo_id>/encerrar', methods=['POST'])
 @admin_required
-def encerrar_jogo_aovivo(naipe, jogo_id):
+def encerrar_jogo_aovivo(torneio_id, jogo_id):
     """Finaliza a partida. Atualiza classificação."""
     def _do(data):
-        jogo = _find_jogo(data, naipe, jogo_id)
+        jogo = _find_jogo(data, torneio_id, jogo_id)
         if not jogo:
             return {"error": "Jogo não encontrado"}
         sa = jogo.get("set_atual")
@@ -1639,7 +1873,7 @@ def encerrar_jogo_aovivo(naipe, jogo_id):
         jogo["em_andamento"] = False
         jogo["set_atual"] = None
         jogo["finalizado"] = True
-        auto_classify_semis(data, naipe, test_mode=bool(jogo.get("is_test")))
+        auto_classify_semis(data, torneio_id, test_mode=bool(jogo.get("is_test")))
         return {"ok": True, "jogo": jogo}
     res = update_data(_do)
     if res.get("error"):
@@ -1647,13 +1881,13 @@ def encerrar_jogo_aovivo(naipe, jogo_id):
     do_backup()
     return jsonify(res)
 
-@app.route('/api/jogos/<naipe>/<jogo_id>/pausar', methods=['POST'])
+@app.route('/api/jogos/<torneio_id>/<jogo_id>/pausar', methods=['POST'])
 @admin_required
-def pausar_jogo_aovivo(naipe, jogo_id):
+def pausar_jogo_aovivo(torneio_id, jogo_id):
     """Sai do modo ao vivo, mantendo o que foi anotado.
     Pode retomar com /iniciar depois."""
     def _do(data):
-        jogo = _find_jogo(data, naipe, jogo_id)
+        jogo = _find_jogo(data, torneio_id, jogo_id)
         if not jogo:
             return {"error": "Jogo não encontrado"}
         jogo["em_andamento"] = False
@@ -1664,9 +1898,9 @@ def pausar_jogo_aovivo(naipe, jogo_id):
         return jsonify(res), 400
     return jsonify(res)
 
-@app.route('/api/jogos/<naipe>/<jogo_id>/parcial/<int:idx>', methods=['PUT'])
+@app.route('/api/jogos/<torneio_id>/<jogo_id>/parcial/<int:idx>', methods=['PUT'])
 @admin_required
-def editar_parcial(naipe, jogo_id, idx):
+def editar_parcial(torneio_id, jogo_id, idx):
     """Edita uma parcial já fechada. Body: {pontos_a, pontos_b}.
     Recalcula sets_a/sets_b a partir das parciais."""
     body = request.json or {}
@@ -1680,7 +1914,7 @@ def editar_parcial(naipe, jogo_id, idx):
     if pa == pb:
         return jsonify({"error": "Empate não permitido em set"}), 400
     def _do(data):
-        jogo = _find_jogo(data, naipe, jogo_id)
+        jogo = _find_jogo(data, torneio_id, jogo_id)
         if not jogo:
             return {"error": "Jogo não encontrado"}
         parciais = list(jogo.get("parciais") or [])
@@ -1702,20 +1936,21 @@ def editar_parcial(naipe, jogo_id, idx):
         jogo["sets_b"] = sb
         # Se o jogo estava finalizado, mantém. Auto-reclassify caso seja semi/grupos
         if jogo.get("finalizado"):
-            auto_classify_semis(data, naipe, test_mode=bool(jogo.get("is_test")))
+            auto_classify_semis(data, torneio_id, test_mode=bool(jogo.get("is_test")))
         return {"ok": True, "jogo": jogo}
     res = update_data(_do)
     if res.get("error"):
         return jsonify(res), 400
     return jsonify(res)
 
-@app.route('/api/jogos/<naipe>/aovivo', methods=['GET'])
-def get_jogo_aovivo(naipe):
+@app.route('/api/jogos/<torneio_id>/aovivo', methods=['GET'])
+def get_jogo_aovivo(torneio_id):
     """Endpoint público: retorna o jogo em andamento (se houver) com nomes das equipes.
     Jogos de teste (is_test) NUNCA aparecem aqui — espectador não enxerga."""
     data = load_data()
-    emap = {e["id"]: {"nome": e["nome"], "logo": e.get("logo")} for e in data["equipes"].get(naipe, [])}
-    for j in data["jogos"].get(naipe, []):
+    emap = {e["id"]: {"nome": e["nome"], "logo": e.get("logo")}
+            for e in data.get("equipes", []) if e.get("torneio_id") == torneio_id}
+    for j in data["jogos"].get(torneio_id, []):
         if j.get("is_test"):
             continue
         if j.get("em_andamento"):
@@ -1726,19 +1961,20 @@ def get_jogo_aovivo(naipe):
     return jsonify(None)
 
 # --- CLASSIFICAÇÃO ---
-@app.route('/api/classificacao/<naipe>/<grupo>', methods=['GET'])
-def get_classificacao(naipe, grupo):
+@app.route('/api/classificacao/<torneio_id>/<grupo>', methods=['GET'])
+def get_classificacao(torneio_id, grupo):
     data = load_data()
-    cfg = get_config(data, naipe)
-    fmt = cfg.get("formato_jogos", "grupos")
-    eids = data["grupos"].get(naipe, {}).get(grupo, [])
+    torneio = get_torneio(data, torneio_id) or {}
+    fmt = torneio.get("formato_jogos", "grupos")
+    eids = data["grupos"].get(torneio_id, {}).get(grupo, [])
+    equipes_torneio = [e for e in data.get("equipes", []) if e.get("torneio_id") == torneio_id]
     # Filtra equipes de teste (defesa em profundidade)
-    test_team_ids = {e["id"] for e in data["equipes"].get(naipe, []) if e.get("is_test")}
+    test_team_ids = {e["id"] for e in equipes_torneio if e.get("is_test")}
     eids = [eid for eid in eids if eid not in test_team_ids]
-    jogos = data["jogos"].get(naipe, [])
-    emap = {e["id"]: e["nome"] for e in data["equipes"].get(naipe, []) if not e.get("is_test")}
+    jogos = data["jogos"].get(torneio_id, [])
+    emap = {e["id"]: e["nome"] for e in equipes_torneio if not e.get("is_test")}
     # Quadrangular usa estrutura idêntica ao hexagonal (todos contra todos em A)
-    fmt_grupo_unico = fmt in ("hexagonal", "quad_corrido", "quad_decisao")
+    fmt_grupo_unico = fmt in ("hexagonal", "quad_corrido", "quad_decisao", "tri_corrido", "tri_final")
     fase_filter = "hexagonal" if fmt_grupo_unico else "grupos"
     relevant_jogos = [j for j in jogos
                       if j.get("fase") == fase_filter
@@ -1750,45 +1986,40 @@ def get_classificacao(naipe, grupo):
         r["nome"] = emap.get(r["id"], "???")
     return jsonify(ranking)
 
-# --- REGULAMENTO (per naipe) ---
+# --- REGULAMENTO (default global + override por torneio) ---
 @app.route('/api/regulamento', methods=['GET'])
 def get_regulamento_default():
-    data = load_data()
-    reg = data.get("regulamento", "")
-    if isinstance(reg, str):
-        return jsonify({"regulamento": reg})
-    return jsonify({"regulamento": reg.get("feminino", "")})
+    return jsonify({"regulamento": load_data().get("regulamento_default", "")})
 
-@app.route('/api/regulamento/<naipe>', methods=['GET'])
-def get_regulamento(naipe):
+@app.route('/api/regulamento/<torneio_id>', methods=['GET'])
+def get_regulamento(torneio_id):
+    """Regulamento do torneio (se tiver), senão cai no default global."""
     data = load_data()
-    reg = data.get("regulamento", "")
-    if isinstance(reg, str):
-        return jsonify({"regulamento": reg})
-    return jsonify({"regulamento": reg.get(naipe, "")})
+    t = get_torneio(data, torneio_id)
+    texto = (t.get("regulamento") if t else "") or data.get("regulamento_default", "")
+    return jsonify({"regulamento": texto})
 
-@app.route('/api/regulamento/<naipe>', methods=['POST'])
+@app.route('/api/regulamento/<torneio_id>', methods=['POST'])
 @admin_required
-def set_regulamento(naipe):
+def set_regulamento(torneio_id):
     body = request.json or {}
     def _do(data):
-        reg = data.get("regulamento", "")
-        if isinstance(reg, str):
-            old_text = reg
-            data["regulamento"] = {"masculino": old_text, "feminino": old_text}
-        data["regulamento"][naipe] = body.get("regulamento", "")
+        t = get_torneio(data, torneio_id)
+        if not t:
+            return None
+        t["regulamento"] = body.get("regulamento", "")
         return {"ok": True}
-    return jsonify(update_data(_do))
+    res = update_data(_do)
+    if res is None:
+        return jsonify({"error": "Torneio não encontrado"}), 404
+    return jsonify(res)
 
 @app.route('/api/regulamento', methods=['POST'])
 @admin_required
 def set_regulamento_default():
     body = request.json or {}
     def _do(data):
-        reg = data.get("regulamento", "")
-        if isinstance(reg, str):
-            data["regulamento"] = {"masculino": "", "feminino": ""}
-        data["regulamento"]["feminino"] = body.get("regulamento", "")
+        data["regulamento_default"] = body.get("regulamento", "")
         return {"ok": True}
     return jsonify(update_data(_do))
 
@@ -1852,13 +2083,19 @@ def change_admin_password():
 @admin_required
 def get_dashboard():
     data = load_data()
+    tid_naipe = {t["id"]: t.get("naipe") for t in data.get("torneios", [])}
     stats = {}
     for naipe in ["masculino", "feminino"]:
-        equipes = [e for e in data["equipes"].get(naipe, []) if not e.get("is_test")]
+        equipes = [e for e in data.get("equipes", [])
+                   if not e.get("is_test") and tid_naipe.get(e.get("torneio_id")) == naipe]
         atletas_count = sum(len(data.get("atletas", {}).get(e["id"], [])) for e in equipes)
         pagos = sum(1 for e in equipes if e.get("pagamento_status") == "aprovado")
         pendentes = sum(1 for e in equipes if e.get("pagamento_status", "pendente") == "pendente")
-        jogos = [j for j in data["jogos"].get(naipe, []) if not j.get("is_test")]
+        # Jogos de TODOS os torneios do naipe
+        jogos = []
+        for t in data.get("torneios", []):
+            if t.get("naipe") == naipe:
+                jogos.extend(j for j in data["jogos"].get(t["id"], []) if not j.get("is_test"))
         jogos_feitos = sum(1 for j in jogos if j.get("finalizado"))
         jogos_total = len([j for j in jogos if j.get("fase") in ("grupos", "hexagonal")])
         stats[naipe] = {
@@ -1867,12 +2104,17 @@ def get_dashboard():
             "pagos": pagos,
             "pendentes": pendentes,
             "jogos_feitos": jogos_feitos,
-            "jogos_total": jogos_total
+            "jogos_total": jogos_total,
+            "torneios": sum(1 for t in data.get("torneios", []) if t.get("naipe") == naipe),
         }
+    # Equipes órfãs (sem torneio) — precisam de atribuição manual pelo admin (caso QUEEN).
+    orfas = [e for e in data.get("equipes", []) if not e.get("is_test") and not e.get("torneio_id")]
     stats["total_equipes"] = stats["masculino"]["equipes"] + stats["feminino"]["equipes"]
     stats["total_atletas"] = stats["masculino"]["atletas"] + stats["feminino"]["atletas"]
     stats["total_pagos"] = stats["masculino"]["pagos"] + stats["feminino"]["pagos"]
     stats["total_pendentes"] = stats["masculino"]["pendentes"] + stats["feminino"]["pendentes"]
+    stats["sem_torneio"] = len(orfas)
+    stats["total_torneios"] = len(data.get("torneios", []))
     return jsonify(stats)
 
 # --- BACKUP ---
@@ -2006,7 +2248,7 @@ def delete_patrocinador(pid):
 # Tudo marcado is_test é INVISÍVEL em todos os endpoints públicos.
 # Admin acessa via /api/test/state e usa fluxo Ao Vivo normal.
 
-TEST_NAIPE = "feminino"  # Usa naipe feminino apenas pra namespace do jogo de teste
+TEST_TORNEIO_ID = "__test__"  # Torneio reservado/oculto pro sandbox de teste (invisível ao público)
 
 @app.route('/api/test/state', methods=['GET'])
 @admin_required
@@ -2019,33 +2261,27 @@ def test_state():
     """
     data = load_data()
     cenario = data.get("test_meta", {}).get("cenario")  # None se não tiver
-    test_equipes = []
-    for naipe in ("masculino", "feminino"):
-        for e in data["equipes"].get(naipe, []):
-            if e.get("is_test"):
-                test_equipes.append({"id": e["id"], "nome": e["nome"], "naipe": naipe})
+    test_equipes = [{"id": e["id"], "nome": e["nome"]} for e in data.get("equipes", []) if e.get("is_test")]
+    emap = {e["id"]: e["nome"] for e in data.get("equipes", []) if e.get("is_test")}
     test_jogos = []
-    for naipe in ("masculino", "feminino"):
-        emap = {e["id"]: e["nome"] for e in data["equipes"].get(naipe, [])}
-        for j in data["jogos"].get(naipe, []):
-            if j.get("is_test"):
-                test_jogos.append({
-                    "id": j["id"],
-                    "naipe": naipe,
-                    "fase": j.get("fase"),
-                    "grupo": j.get("grupo", ""),
-                    "label": j.get("label", ""),
-                    "horario": j.get("horario", ""),
-                    "equipe_a_id": j.get("equipe_a"),
-                    "equipe_b_id": j.get("equipe_b"),
-                    "equipe_a_nome": emap.get(j.get("equipe_a"), "?") if j.get("equipe_a") else None,
-                    "equipe_b_nome": emap.get(j.get("equipe_b"), "?") if j.get("equipe_b") else None,
-                    "em_andamento": bool(j.get("em_andamento")),
-                    "finalizado": bool(j.get("finalizado")),
-                    "sets_a": j.get("sets_a", 0),
-                    "sets_b": j.get("sets_b", 0),
-                })
-    grupos_test = data.get("grupos_test", {}).get(TEST_NAIPE, {})
+    for j in data["jogos"].get(TEST_TORNEIO_ID, []):
+        if j.get("is_test"):
+            test_jogos.append({
+                "id": j["id"],
+                "fase": j.get("fase"),
+                "grupo": j.get("grupo", ""),
+                "label": j.get("label", ""),
+                "horario": j.get("horario", ""),
+                "equipe_a_id": j.get("equipe_a"),
+                "equipe_b_id": j.get("equipe_b"),
+                "equipe_a_nome": emap.get(j.get("equipe_a"), "?") if j.get("equipe_a") else None,
+                "equipe_b_nome": emap.get(j.get("equipe_b"), "?") if j.get("equipe_b") else None,
+                "em_andamento": bool(j.get("em_andamento")),
+                "finalizado": bool(j.get("finalizado")),
+                "sets_a": j.get("sets_a", 0),
+                "sets_b": j.get("sets_b", 0),
+            })
+    grupos_test = data.get("grupos_test", {}).get(TEST_TORNEIO_ID, {})
     return jsonify({
         "active": bool(test_equipes and test_jogos),
         "cenario": cenario,
@@ -2059,10 +2295,9 @@ def test_state():
 def test_jogo():
     """Retorna o primeiro jogo de teste (sandbox) — usado pelo botão antigo."""
     data = load_data()
-    for naipe in ("masculino", "feminino"):
-        for j in data["jogos"].get(naipe, []):
-            if j.get("is_test"):
-                return jsonify(j)
+    for j in data["jogos"].get(TEST_TORNEIO_ID, []):
+        if j.get("is_test"):
+            return jsonify(j)
     return jsonify({"error": "Nenhum jogo de teste ativo"}), 404
 
 def _create_test_team(idx, suffix=""):
@@ -2078,35 +2313,30 @@ def _create_test_team(idx, suffix=""):
         "comprovante": None,
         "created_at": datetime.now().isoformat(),
         "is_test": True,
+        "torneio_id": TEST_TORNEIO_ID,
     }
 
 def _wipe_test_environment(data):
-    """Limpa todo ambiente de teste atual (equipes, jogos, grupos, meta)."""
-    for naipe in ("masculino", "feminino"):
-        test_eq_ids = {e["id"] for e in data["equipes"].get(naipe, []) if e.get("is_test")}
-        data["equipes"][naipe] = [e for e in data["equipes"].get(naipe, []) if not e.get("is_test")]
-        data["jogos"][naipe] = [j for j in data["jogos"].get(naipe, []) if not j.get("is_test")]
-        for eid in test_eq_ids:
-            if eid in data.get("atletas", {}):
-                del data["atletas"][eid]
-    if "grupos_test" in data:
-        del data["grupos_test"]
-    if "test_meta" in data:
-        del data["test_meta"]
-    if "test_config" in data:
-        del data["test_config"]
+    """Limpa todo ambiente de teste (equipes is_test da lista única, jogos/grupos/meta do torneio de teste)."""
+    test_eq_ids = {e["id"] for e in data.get("equipes", []) if e.get("is_test")}
+    data["equipes"] = [e for e in data.get("equipes", []) if not e.get("is_test")]
+    data.get("jogos", {}).pop(TEST_TORNEIO_ID, None)
+    for eid in test_eq_ids:
+        data.get("atletas", {}).pop(eid, None)
+    for k in ("grupos_test", "test_meta", "test_config"):
+        data.pop(k, None)
 
 @app.route('/api/test/setup', methods=['POST'])
 @admin_required
 def test_setup():
     """Cenário sandbox: 2 equipes + 1 jogo direto. Pra ensaiar Ao Vivo."""
-    naipe = TEST_NAIPE
+    tid = TEST_TORNEIO_ID
     def _do(data):
         _wipe_test_environment(data)
         eq_a = _create_test_team("a", "A")
         eq_b = _create_test_team("b", "B")
-        data["equipes"][naipe].append(eq_a)
-        data["equipes"][naipe].append(eq_b)
+        data["equipes"].append(eq_a)
+        data["equipes"].append(eq_b)
         jogo = {
             "id": "test_" + uuid.uuid4().hex[:6],
             "fase": "teste",
@@ -2119,9 +2349,9 @@ def test_setup():
             "finalizado": False, "em_andamento": False, "set_atual": None,
             "is_test": True,
         }
-        data["jogos"][naipe].append(jogo)
-        data["test_meta"] = {"cenario": "sandbox", "naipe": naipe}
-        return {"naipe": naipe, "jogo_id": jogo["id"], "equipe_a_id": eq_a["id"], "equipe_b_id": eq_b["id"]}
+        data["jogos"].setdefault(tid, []).append(jogo)
+        data["test_meta"] = {"cenario": "sandbox", "torneio_id": tid}
+        return {"torneio_id": tid, "jogo_id": jogo["id"], "equipe_a_id": eq_a["id"], "equipe_b_id": eq_b["id"]}
     res = update_data(_do)
     return jsonify({"ok": True, "cenario": "sandbox", **res})
 
@@ -2131,19 +2361,19 @@ def test_setup_grupos():
     """Cenário 2 grupos de 3: cria 6 equipes-fantasma, sorteia em A/B (3+3),
     gera tabela com fase de grupos + semis + final + 3º. Tudo is_test=true."""
     import random
-    naipe = TEST_NAIPE
+    tid = TEST_TORNEIO_ID
     def _do(data):
         _wipe_test_environment(data)
         # Cria 6 equipes
         equipes = [_create_test_team(str(i+1), str(i+1)) for i in range(6)]
         for eq in equipes:
-            data["equipes"][naipe].append(eq)
+            data["equipes"].append(eq)
         # Sorteia: 3 pra A, 3 pra B
         eids = [eq["id"] for eq in equipes]
         random.shuffle(eids)
         grupos = {"A": eids[:3], "B": eids[3:]}
-        # Persiste em estrutura SEPARADA — não toca em data["grupos"][naipe]!
-        data.setdefault("grupos_test", {})[naipe] = grupos
+        # Persiste em estrutura SEPARADA (grupos_test) — não toca nos grupos reais!
+        data.setdefault("grupos_test", {})[tid] = grupos
         # Config de teste
         data["test_config"] = {"formato_jogos": "grupos"}
         # Gera jogos
@@ -2153,9 +2383,9 @@ def test_setup_grupos():
             j["set_lados"] = []
             j["em_andamento"] = False
             j["set_atual"] = None
-        data["jogos"][naipe].extend(jogos)
-        data["test_meta"] = {"cenario": "grupos", "naipe": naipe}
-        return {"naipe": naipe, "equipes_count": len(equipes), "jogos_count": len(jogos), "grupos": grupos}
+        data["jogos"].setdefault(tid, []).extend(jogos)
+        data["test_meta"] = {"cenario": "grupos", "torneio_id": tid}
+        return {"torneio_id": tid, "equipes_count": len(equipes), "jogos_count": len(jogos), "grupos": grupos}
     res = update_data(_do)
     return jsonify({"ok": True, "cenario": "grupos", **res})
 
@@ -2164,24 +2394,24 @@ def test_setup_grupos():
 def test_setup_hexagonal():
     """Cenário hexagonal: cria 6 equipes-fantasma todas em grupo único A,
     todos contra todos + semis (1ºx4º, 2ºx3º) + final + 3º. Tudo is_test=true."""
-    naipe = TEST_NAIPE
+    tid = TEST_TORNEIO_ID
     def _do(data):
         _wipe_test_environment(data)
         equipes = [_create_test_team(str(i+1), str(i+1)) for i in range(6)]
         for eq in equipes:
-            data["equipes"][naipe].append(eq)
+            data["equipes"].append(eq)
         eids = [eq["id"] for eq in equipes]
         grupos = {"A": eids, "B": []}
-        data.setdefault("grupos_test", {})[naipe] = grupos
+        data.setdefault("grupos_test", {})[tid] = grupos
         data["test_config"] = {"formato_jogos": "hexagonal"}
         jogos = _build_jogos_from_grupos(grupos, "hexagonal", is_test=True)
         for j in jogos:
             j["set_lados"] = []
             j["em_andamento"] = False
             j["set_atual"] = None
-        data["jogos"][naipe].extend(jogos)
-        data["test_meta"] = {"cenario": "hexagonal", "naipe": naipe}
-        return {"naipe": naipe, "equipes_count": len(equipes), "jogos_count": len(jogos), "grupos": grupos}
+        data["jogos"].setdefault(tid, []).extend(jogos)
+        data["test_meta"] = {"cenario": "hexagonal", "torneio_id": tid}
+        return {"torneio_id": tid, "equipes_count": len(equipes), "jogos_count": len(jogos), "grupos": grupos}
     res = update_data(_do)
     return jsonify({"ok": True, "cenario": "hexagonal", **res})
 
@@ -2190,24 +2420,24 @@ def test_setup_hexagonal():
 def test_setup_quad_corrido():
     """Cenário quadrangular pontos corridos: 4 equipes, todos contra todos = 6 jogos.
     Sem fase eliminatória — campeão é o 1º colocado."""
-    naipe = TEST_NAIPE
+    tid = TEST_TORNEIO_ID
     def _do(data):
         _wipe_test_environment(data)
         equipes = [_create_test_team(str(i+1), str(i+1)) for i in range(4)]
         for eq in equipes:
-            data["equipes"][naipe].append(eq)
+            data["equipes"].append(eq)
         eids = [eq["id"] for eq in equipes]
         grupos = {"A": eids, "B": []}
-        data.setdefault("grupos_test", {})[naipe] = grupos
+        data.setdefault("grupos_test", {})[tid] = grupos
         data["test_config"] = {"formato_jogos": "quad_corrido"}
         jogos = _build_jogos_from_grupos(grupos, "quad_corrido", is_test=True)
         for j in jogos:
             j["set_lados"] = []
             j["em_andamento"] = False
             j["set_atual"] = None
-        data["jogos"][naipe].extend(jogos)
-        data["test_meta"] = {"cenario": "quad_corrido", "naipe": naipe}
-        return {"naipe": naipe, "equipes_count": len(equipes), "jogos_count": len(jogos), "grupos": grupos}
+        data["jogos"].setdefault(tid, []).extend(jogos)
+        data["test_meta"] = {"cenario": "quad_corrido", "torneio_id": tid}
+        return {"torneio_id": tid, "equipes_count": len(equipes), "jogos_count": len(jogos), "grupos": grupos}
     res = update_data(_do)
     return jsonify({"ok": True, "cenario": "quad_corrido", **res})
 
@@ -2215,24 +2445,24 @@ def test_setup_quad_corrido():
 @admin_required
 def test_setup_quad_decisao():
     """Cenário quadrangular com final: 4 equipes, todos contra todos = 6 jogos + final 1ºx2º = 7 jogos."""
-    naipe = TEST_NAIPE
+    tid = TEST_TORNEIO_ID
     def _do(data):
         _wipe_test_environment(data)
         equipes = [_create_test_team(str(i+1), str(i+1)) for i in range(4)]
         for eq in equipes:
-            data["equipes"][naipe].append(eq)
+            data["equipes"].append(eq)
         eids = [eq["id"] for eq in equipes]
         grupos = {"A": eids, "B": []}
-        data.setdefault("grupos_test", {})[naipe] = grupos
+        data.setdefault("grupos_test", {})[tid] = grupos
         data["test_config"] = {"formato_jogos": "quad_decisao"}
         jogos = _build_jogos_from_grupos(grupos, "quad_decisao", is_test=True)
         for j in jogos:
             j["set_lados"] = []
             j["em_andamento"] = False
             j["set_atual"] = None
-        data["jogos"][naipe].extend(jogos)
-        data["test_meta"] = {"cenario": "quad_decisao", "naipe": naipe}
-        return {"naipe": naipe, "equipes_count": len(equipes), "jogos_count": len(jogos), "grupos": grupos}
+        data["jogos"].setdefault(tid, []).extend(jogos)
+        data["test_meta"] = {"cenario": "quad_decisao", "torneio_id": tid}
+        return {"torneio_id": tid, "equipes_count": len(equipes), "jogos_count": len(jogos), "grupos": grupos}
     res = update_data(_do)
     return jsonify({"ok": True, "cenario": "quad_decisao", **res})
 
@@ -2242,10 +2472,8 @@ def test_teardown():
     """Remove TODO o ambiente de teste (equipes + jogos + grupos + meta)."""
     counts = {"equipes": 0, "jogos": 0}
     def _do(data):
-        for naipe in ("masculino", "feminino"):
-            test_eq_ids = {e["id"] for e in data["equipes"].get(naipe, []) if e.get("is_test")}
-            counts["equipes"] += len(test_eq_ids)
-            counts["jogos"] += sum(1 for j in data["jogos"].get(naipe, []) if j.get("is_test"))
+        counts["equipes"] += sum(1 for e in data.get("equipes", []) if e.get("is_test"))
+        counts["jogos"] += sum(1 for j in data["jogos"].get(TEST_TORNEIO_ID, []) if j.get("is_test"))
         _wipe_test_environment(data)
         return counts
     res = update_data(_do)
@@ -2255,13 +2483,13 @@ def test_teardown():
 @app.route('/api/test/classificacao/<grupo>', methods=['GET'])
 @admin_required
 def test_classificacao(grupo):
-    """Calcula classificação de teste — não usa data['grupos'][naipe], usa grupos_test."""
+    """Calcula classificação de teste — usa grupos_test[__test__], não os grupos reais."""
     data = load_data()
-    naipe = TEST_NAIPE
+    tid = TEST_TORNEIO_ID
     fmt = data.get("test_config", {}).get("formato_jogos", "hexagonal")
-    eids = data.get("grupos_test", {}).get(naipe, {}).get(grupo, [])
-    jogos_test = [j for j in data["jogos"].get(naipe, []) if j.get("is_test")]
-    emap = {e["id"]: e["nome"] for e in data["equipes"].get(naipe, []) if e.get("is_test")}
+    eids = data.get("grupos_test", {}).get(tid, {}).get(grupo, [])
+    jogos_test = [j for j in data["jogos"].get(tid, []) if j.get("is_test")]
+    emap = {e["id"]: e["nome"] for e in data.get("equipes", []) if e.get("is_test")}
     fmt_grupo_unico = fmt in ("hexagonal", "quad_corrido", "quad_decisao")
     fase_filter = "hexagonal" if fmt_grupo_unico else "grupos"
     relevant = [j for j in jogos_test
@@ -2278,4 +2506,4 @@ def health():
     return jsonify({"ok": True, "ts": datetime.now().isoformat()})
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)

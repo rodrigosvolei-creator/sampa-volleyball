@@ -15,9 +15,10 @@ body{font-family:'Barlow',sans-serif;background:var(--g50);color:var(--black);mi
 .header-logo{width:48px;height:48px;border-radius:50%;object-fit:cover;border:2px solid var(--red)}
 .header-title{font-family:'Oswald',sans-serif;font-weight:700;font-size:1.3rem;letter-spacing:2px;text-transform:uppercase;line-height:1.1}
 .header-title span{color:var(--red)}
-.naipe-tabs{display:flex;padding:0 16px}
-.naipe-tab{flex:1;padding:10px;text-align:center;font-family:'Oswald',sans-serif;font-weight:600;font-size:.95rem;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;border:none;background:transparent;color:var(--g300);border-bottom:3px solid transparent;transition:all .2s}
-.naipe-tab.active{color:var(--white);border-bottom-color:var(--red)}
+.torneio-selector{display:flex;align-items:center;gap:10px;padding:10px 16px 12px}
+.torneio-selector-label{font-family:'Oswald',sans-serif;font-weight:600;font-size:.9rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--g300);flex-shrink:0}
+.torneio-selector select{flex:1;padding:9px 12px;font-family:'Oswald',sans-serif;font-weight:600;font-size:.95rem;letter-spacing:.5px;text-transform:uppercase;color:var(--white);background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);border-bottom:3px solid var(--red);border-radius:8px;cursor:pointer;-webkit-appearance:none;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='3'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
+.torneio-selector select option,.torneio-selector select optgroup{background:var(--black);color:var(--white)}
 .nav-bar{background:var(--white);border-bottom:1px solid var(--g100);display:flex;overflow-x:auto;scrollbar-width:none;padding:0 8px;position:sticky;top:96px;z-index:90;box-shadow:0 1px 3px rgba(0,0,0,.08)}
 .nav-bar::-webkit-scrollbar{display:none}
 .nav-tab{flex-shrink:0;padding:12px 14px;font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:.82rem;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;border:none;background:transparent;color:var(--g400);border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap}
@@ -60,9 +61,9 @@ tr:last-child td{border-bottom:none}
 .etapa-date{flex-shrink:0;width:56px;text-align:center;background:var(--red);color:white;border-radius:var(--radius-xs);padding:8px 4px;font-family:'Oswald',sans-serif}
 .etapa-date .day{font-size:1.4rem;font-weight:700;line-height:1}
 .etapa-date .month{font-size:.65rem;font-weight:500;letter-spacing:1px;text-transform:uppercase;margin-top:2px}
-/* === TARJA ETAPA ADIADA === */
+/* === TARJA TORNEIO ADIADO === */
 .adiada-overlay{position:absolute;inset:0;z-index:10;pointer-events:none;overflow:hidden;border-radius:inherit;background:rgba(0,0,0,.45)}
-.adiada-overlay::before{content:'ETAPA ADIADA';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-12deg);background:#dc2626;color:#fff;font-family:'Oswald',sans-serif;font-weight:700;font-size:1.6rem;letter-spacing:3px;padding:14px 60px;border:3px solid #fff;box-shadow:0 6px 24px rgba(0,0,0,.5);text-transform:uppercase;white-space:nowrap;width:140%;text-align:center}
+.adiada-overlay::before{content:'TORNEIO ADIADO';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-12deg);background:#dc2626;color:#fff;font-family:'Oswald',sans-serif;font-weight:700;font-size:1.6rem;letter-spacing:3px;padding:14px 60px;border:3px solid #fff;box-shadow:0 6px 24px rgba(0,0,0,.5);text-transform:uppercase;white-space:nowrap;width:140%;text-align:center}
 .card-adiada,.next-card-adiada{position:relative;opacity:.85}
 @media(max-width:480px){.adiada-overlay::before{font-size:1.15rem;padding:10px 40px;letter-spacing:2px}}
 .next-card{background:linear-gradient(135deg,#1a1a1a 0%,#2d2d2d 100%);color:white;border:none;border-radius:var(--radius);padding:20px;margin-bottom:12px;position:relative;overflow:hidden}
@@ -106,16 +107,16 @@ tr:last-child td{border-bottom:none}
 <body>
 <header class="header">
 <div class="header-top"><img src="/static/logo.jpeg" class="header-logo" alt="SVL"><div class="header-title">Sampa Volleyball<br><span>League</span></div></div>
-<div class="naipe-tabs">
-<button class="naipe-tab active" onclick="switchNaipe('masculino')">🏐 Masculino</button>
-<button class="naipe-tab" onclick="switchNaipe('feminino')">🏐 Feminino</button>
+<div class="torneio-selector">
+<span class="torneio-selector-label">🏆 Torneio</span>
+<select id="torneioSelect" onchange="switchTorneio(this.value)"><option value="">Carregando…</option></select>
 </div>
 </header>
 <div class="admin-bar" id="adminBar">⚙ Modo Admin Ativo</div>
 <div class="team-bar" id="teamBar">🏐 Logado como: <span id="teamBarName"></span></div>
 <nav class="nav-bar">
 <button class="nav-tab active" data-sec="inicio" onclick="switchSection('inicio')">Início</button>
-<button class="nav-tab" data-sec="etapas" onclick="switchSection('etapas')">Etapas</button>
+<button class="nav-tab" data-sec="etapas" onclick="switchSection('etapas')">Torneios</button>
 <button class="nav-tab" data-sec="inscricao" onclick="switchSection('inscricao')">Inscrição</button>
 <button class="nav-tab" data-sec="equipes" onclick="switchSection('equipes')">Equipes</button>
 <button class="nav-tab" data-sec="grupos" onclick="switchSection('grupos')">Grupos</button>
@@ -167,28 +168,35 @@ tr:last-child td{border-bottom:none}
 <div id="aoVivoCard"></div>
 <div class="card">
 <div class="card-title" style="margin-bottom:10px">Sobre o Torneio</div>
-<p style="font-size:.88rem;color:var(--g500);line-height:1.7">O <strong>1º Volley Fast</strong> é um torneio que será realizado em um único dia — o torneio <strong>Feminino</strong> no dia <strong>09/05/2026</strong> no São Paulo Futebol Clube a partir das 8:30h, e o torneio <strong>Masculino</strong> no dia <strong>30/05/2026</strong>, também no São Paulo Futebol Clube às 8:30h.</p>
-<p style="font-size:.88rem;color:var(--g500);line-height:1.7;margin-top:10px">Trata-se de um Hexagonal (a princípio) com equipes divididas em <strong>2 chaves</strong>, onde na fase classificatória ocorrerão embates entre todos os participantes de cada chave a fim de se chegar às <strong>4 equipes classificadas</strong> para o <strong>cruzamento olímpico</strong> que definirá a disputa da grande final e também da conquista do terceiro lugar.</p>
-<p style="font-size:.88rem;color:var(--g500);line-height:1.7;margin-top:10px">Por isso é um torneio <strong>"Fast"</strong> — no mesmo dia conheceremos os 3 primeiros colocados, que serão premiados e farão parte de um fato histórico: <span style="color:var(--red);font-weight:600">o surgimento dessa Liga que vai dar muito o que falar.</span></p>
+<div id="sobreTorneioBody" style="font-size:.88rem;color:var(--g500);line-height:1.7"></div>
 </div>
 <div class="card" style="border-left:3px solid var(--red)">
 <div class="card-title" style="margin-bottom:10px">Dúvidas? Fale Conosco</div>
 <div id="contatoInfo" style="display:flex;flex-direction:column;gap:10px"></div>
 </div>
 </div>
-<!-- ETAPAS -->
-<div class="section" id="sec-etapas"><div class="section-title">Etapas</div><div id="etapasList"></div>
+<!-- TORNEIOS -->
+<div class="section" id="sec-etapas"><div class="section-title">Torneios</div><div id="etapasList"></div>
 <div id="etapaForm" style="display:none" class="card">
-<div class="card-title" style="margin-bottom:14px">Nova Etapa</div>
-<div class="form-group"><label class="form-label">Nome</label><input class="form-input" id="etapaNome" placeholder="Ex: 1º Volley Fast"></div>
+<div class="card-title" style="margin-bottom:14px">Novo Torneio</div>
+<div class="form-group"><label class="form-label">Naipe</label><select class="form-input" id="etapaNaipe"><option value="feminino">Feminino</option><option value="masculino">Masculino</option></select></div>
+<div class="form-group"><label class="form-label">Nome</label><input class="form-input" id="etapaNome" placeholder="Ex: DETOX DA COPA E1"></div>
 <div class="form-group"><label class="form-label">Local</label><input class="form-input" id="etapaLocal" placeholder="Ex: S.P.F.C."></div>
 <div class="form-group"><label class="form-label">Endereço</label><input class="form-input" id="etapaEndereco"></div>
 <div class="form-group"><label class="form-label">Data</label><input class="form-input" id="etapaData" type="date"></div>
-<div class="form-group"><label class="form-label">Categoria</label><input class="form-input" id="etapaCat" placeholder="Ex: 30+"></div>
-<div class="form-group"><label class="form-label">Formato</label><input class="form-input" id="etapaFormato" placeholder="Ex: Hexagonal"></div>
+<div class="form-group"><label class="form-label">Categoria</label><input class="form-input" id="etapaCat" placeholder="Ex: E1, E2, 30+"></div>
+<div class="form-group"><label class="form-label">Formato de Jogos</label><select class="form-input" id="etapaFormato">
+<option value="grupos">Grupos (A/B + semis)</option>
+<option value="hexagonal">Hexagonal (6 · todos x todos + semis)</option>
+<option value="quad_corrido">Quadrangular corrido (4)</option>
+<option value="quad_decisao">Quadrangular c/ decisão (4 · +3º e final)</option>
+<option value="tri_corrido">Triangular corrido (3)</option>
+<option value="tri_final">Triangular c/ final (3)</option>
+</select></div>
+<div class="form-group"><label class="form-label">Máx. de Equipes</label><input class="form-input" id="etapaMax" type="number" min="2" max="32" value="4"></div>
 <div class="form-group"><label class="form-label">Horário de Início</label><input class="form-input" id="etapaHorario" type="time"></div>
 <div id="etapaEditId" style="display:none"></div>
-<button class="btn btn-red btn-full" onclick="addEtapa()">Salvar Etapa</button>
+<button class="btn btn-red btn-full" onclick="addEtapa()">Salvar Torneio</button>
 </div></div>
 <!-- INSCRICAO -->
 <div class="section" id="sec-inscricao"><div class="section-title">Inscrição</div>
@@ -204,7 +212,8 @@ tr:last-child td{border-bottom:none}
 <div class="step" data-step="atletas">2. Atletas</div>
 </div>
 <div id="stepEquipe" class="card">
-<div class="card-title" style="margin-bottom:14px">Cadastrar Equipe — <span id="inscNaipe">Masculino</span></div>
+<div class="card-title" style="margin-bottom:14px">Cadastrar Equipe <span id="inscNaipe" style="display:none"></span></div>
+<div class="form-group"><label class="form-label">Torneio</label><select class="form-input" id="inscTorneioSelect" onchange="switchTorneio(this.value)"></select><div style="font-size:.72rem;color:var(--g400);margin-top:4px">Pré-selecionado pelo link, mas você pode trocar.</div></div>
 <div class="form-group"><label class="form-label">Nome da Equipe</label><input class="form-input" id="eqNome" placeholder="Nome da equipe"></div>
 <div class="form-group"><label class="form-label">Responsável</label><input class="form-input" id="eqResp" placeholder="Nome do responsável"></div>
 <div class="form-group"><label class="form-label">Telefone</label><input class="form-input" id="eqTel" placeholder="(11) 99999-9999"></div>
@@ -258,7 +267,7 @@ tr:last-child td{border-bottom:none}
 </div></div>
 <!-- CALENDARIO -->
 <div class="section" id="sec-calendario">
-<div class="section-title">📅 Calendário de Etapas</div>
+<div class="section-title">📅 Calendário de Torneios</div>
 <div id="calendarioList"></div>
 </div>
 <!-- GALERIA -->
@@ -300,7 +309,7 @@ tr:last-child td{border-bottom:none}
 .galeria-card-badge.geral{background:rgba(255,255,255,.2);color:white;backdrop-filter:blur(4px)}
 @media(max-width:600px){#galeriaGrid{grid-template-columns:repeat(2,1fr)}}
 
-/* === APOIO OFICIAL (após Próxima Etapa) === */
+/* === APOIO OFICIAL (após Próximo Torneio) === */
 .app-apoio{position:relative;background:linear-gradient(180deg,#1a1a1a 0%,#0d0d0d 100%);border-radius:var(--radius);padding:22px 18px 24px;margin-bottom:14px;overflow:hidden;box-shadow:0 8px 24px -6px rgba(0,0,0,.18)}
 .app-apoio::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,transparent 0%,var(--red) 30%,var(--red) 70%,transparent 100%)}
 .app-apoio::after{content:'';position:absolute;top:-40px;right:-40px;width:160px;height:160px;border-radius:50%;background:radial-gradient(circle,rgba(227,27,35,.12) 0%,transparent 70%);pointer-events:none}
@@ -487,8 +496,13 @@ tr:last-child td{border-bottom:none}
 // === HTML escape helper for XSS protection ===
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c])}
 
-let currentNaipe='masculino',currentSection='inicio',isAdmin=false;
+let currentTorneio=null,currentSection='inicio',isAdmin=false;
+let allTorneios=[]; // todos os torneios (cada um carrega naipe, categoria e config embutida)
 let teamSession=null;
+function curTorneio(){return allTorneios.find(t=>t.id===currentTorneio)||null}
+function curNaipe(){return curTorneio()?.naipe||''}
+function torneioNaipeLabel(t){return t&&t.naipe==='feminino'?'Feminino':'Masculino'}
+function torneioLabel(t){return t?`${torneioNaipeLabel(t)} · ${t.nome||t.categoria||'Torneio'}`:'—'}
 // === INSCRIPTION OPENING DATE ===
 const INSCRICAO_ABRE=new Date('2026-04-27T14:00:00-03:00'); // 27/04/2026 14:00 BRT
 function inscricaoAberta(){return isAdmin||new Date()>=INSCRICAO_ABRE}
@@ -497,9 +511,8 @@ const diff=INSCRICAO_ABRE-new Date();if(diff<=0)return null;
 const d=Math.floor(diff/86400000),h=Math.floor((diff%86400000)/3600000),m=Math.floor((diff%3600000)/60000),s=Math.floor((diff%60000)/1000);
 return{dias:d,horas:h,minutos:m,segundos:s,texto:`${d>0?d+'d ':''}${String(h).padStart(2,'0')}h ${String(m).padStart(2,'0')}min ${String(s).padStart(2,'0')}s`}}
 setInterval(()=>{const r=tempoRestanteInscricao();document.querySelectorAll('.countdown-live').forEach(el=>{el.textContent=r?r.texto:'INSCRIÇÕES ABERTAS!'});if(!r&&!inscricaoAberta()){location.reload()}},1000);
-let allEquipes={masculino:[],feminino:[]},allGrupos={masculino:{A:[],B:[]},feminino:{A:[],B:[]}};
-let allJogos={masculino:[],feminino:[]};
-let allConfig={masculino:{max_equipes:8,formato_jogos:'grupos',hora_inicio:'08:30',intervalo_min:75},feminino:{max_equipes:6,formato_jogos:'hexagonal',hora_inicio:'08:30',intervalo_min:75}};
+// Caches chaveados por torneio_id (a config de cada torneio vem no próprio objeto do torneio)
+let allEquipes={},allGrupos={},allJogos={};
 let currentInscEquipeId=null,currentInscEquipeNome='';
 
 async function api(path,method='GET',body=null){
@@ -519,21 +532,55 @@ if(r.status===403&&json.error){
 }
 return json;
 }
-// Helper: carrega jogos respeitando o modo (admin vê tudo, incluindo is_test)
-async function loadJogosForCurrentNaipe(){
-  const path=isAdmin?('/jogos/'+currentNaipe+'/admin'):('/jogos/'+currentNaipe);
+// Helper: carrega jogos do torneio atual respeitando o modo (admin vê tudo, incluindo is_test)
+async function loadJogosForCurrentTorneio(){
+  if(!currentTorneio)return [];
+  const path=isAdmin?('/jogos/'+currentTorneio+'/admin'):('/jogos/'+currentTorneio);
   return api(path);
 }
 function showToast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500)}
 function openModal(id){document.getElementById(id).classList.add('active')}
-function closeModal(id){document.getElementById(id).classList.remove('active');if(id==='scoreModal'&&typeof detachLiveKbd==='function'){detachLiveKbd();liveJid=null}}
+function closeModal(id){document.getElementById(id).classList.remove('active');if(id==='scoreModal'){if(typeof detachLiveKbd==='function'){detachLiveKbd();liveJid=null}
+// Se estava editando um jogo de TESTE, restaura o torneio real selecionado
+if(typeof _torneioAntesTeste!=='undefined'&&_torneioAntesTeste!==null){currentTorneio=_torneioAntesTeste;_torneioAntesTeste=null;renderTorneioSelect();if(currentSection==='painel')renderModoTeste()}}}
 
-function switchNaipe(n){
-currentNaipe=n;
-document.querySelectorAll('.naipe-tab').forEach(t=>t.classList.remove('active'));
-document.querySelectorAll('.naipe-tab').forEach(t=>{if(t.textContent.toLowerCase().includes(n.substring(0,3)))t.classList.add('active')});
-document.getElementById('inscNaipe').textContent=n==='masculino'?'Masculino':'Feminino';
-refreshAll();
+// Preenche o dropdown de torneios (agrupado por naipe)
+function renderTorneioSelect(){
+  const selMain=document.getElementById('torneioSelect');
+  const selInsc=document.getElementById('inscTorneioSelect');
+  let html;
+  if(!allTorneios.length){html='<option value="">Nenhum torneio</option>';}
+  else{
+    const byNaipe={feminino:[],masculino:[]};
+    allTorneios.forEach(t=>{(byNaipe[t.naipe]=byNaipe[t.naipe]||[]).push(t)});
+    html='';
+    ['feminino','masculino'].forEach(n=>{
+      const arr=byNaipe[n]||[];if(!arr.length)return;
+      html+=`<optgroup label="${n==='feminino'?'Feminino':'Masculino'}">`;
+      arr.forEach(t=>{const lbl=(t.nome||'Torneio')+(t.categoria?' · '+t.categoria:'');
+        html+=`<option value="${esc(t.id)}"${t.id===currentTorneio?' selected':''}>${esc(lbl)}</option>`});
+      html+='</optgroup>';
+    });
+  }
+  if(selMain)selMain.innerHTML=html;
+  if(selInsc)selInsc.innerHTML=html;
+}
+// Carrega a lista de torneios e garante um torneio atual válido
+async function loadTorneios(){
+  allTorneios=await api('/torneios')||[];
+  if(!currentTorneio||!allTorneios.find(t=>t.id===currentTorneio)){
+    currentTorneio=allTorneios.length?allTorneios[0].id:null;
+  }
+  renderTorneioSelect();
+}
+function switchTorneio(tid){
+  currentTorneio=tid;
+  const sel=document.getElementById('torneioSelect');
+  if(sel&&sel.value!==tid)sel.value=tid;
+  const t=curTorneio();
+  const insc=document.getElementById('inscNaipe');
+  if(insc)insc.textContent=t?torneioNaipeLabel(t):'—';
+  refreshAll();
 }
 function switchSection(s){
 currentSection=s;
@@ -568,12 +615,12 @@ const senha=document.getElementById('teamPass').value.trim();
 if(!login||!senha){showToast('Preencha login e senha');return}
 const r=await api('/auth/equipe','POST',{login,senha});
 if(r.ok){
-teamSession={equipe_id:r.equipe_id,naipe:r.naipe,nome:r.nome,pagamento_status:r.pagamento_status};
+teamSession={equipe_id:r.equipe_id,naipe:r.naipe,torneio_id:r.torneio_id,nome:r.nome,pagamento_status:r.pagamento_status};
 document.getElementById('teamLogin').value='';document.getElementById('teamPass').value='';
 document.getElementById('fabAdmin').textContent='👤';document.getElementById('fabAdmin').classList.add('team-active');
 document.getElementById('teamBar').classList.add('active');document.getElementById('teamBarName').textContent=r.nome;
 currentInscEquipeId=r.equipe_id;currentInscEquipeNome=r.nome;
-if(r.naipe!==currentNaipe)switchNaipe(r.naipe);
+if(r.torneio_id&&r.torneio_id!==currentTorneio)switchTorneio(r.torneio_id);
 showToast('Bem-vinda, '+r.nome+'!');showStepAtletas();
 }else{showToast(r.error||'Login ou senha incorretos')}
 }
@@ -584,8 +631,8 @@ document.getElementById('fabAdmin').textContent='🔒';document.getElementById('
 document.getElementById('teamBar').classList.remove('active');document.getElementById('adminBar').classList.remove('active');
 isAdmin=false;showToast('Desconectado');showStepEquipe();refreshAll();
 }
-function getEquipeName(id){const all=[...allEquipes.masculino,...allEquipes.feminino];return all.find(e=>e.id===id)?.nome||(id?'???':'A definir')}
-function getEquipeLogo(id){const all=[...allEquipes.masculino,...allEquipes.feminino];return all.find(e=>e.id===id)?.logo||null}
+function getEquipeName(id){const all=allEquipes[currentTorneio]||[];return all.find(e=>e.id===id)?.nome||(id?'???':'A definir')}
+function getEquipeLogo(id){const all=allEquipes[currentTorneio]||[];return all.find(e=>e.id===id)?.logo||null}
 function teamDisplay(id,align='left'){
 const nome=getEquipeName(id);const logo=getEquipeLogo(id);const initial=esc(nome.charAt(0).toUpperCase());
 const isRight=align==='right';
@@ -596,10 +643,12 @@ return isRight?`<div style="display:flex;align-items:center;gap:8px;justify-cont
 }
 
 async function refreshAll(){
-allConfig[currentNaipe]=await api('/config/'+currentNaipe);
-allEquipes[currentNaipe]=await api('/equipes/'+currentNaipe);
-allGrupos[currentNaipe]=await api('/grupos/'+currentNaipe);
-allJogos[currentNaipe]=await loadJogosForCurrentNaipe();
+await loadTorneios();
+if(currentTorneio){
+  allEquipes[currentTorneio]=await api('/equipes?torneio_id='+currentTorneio);
+  allGrupos[currentTorneio]=await api('/grupos/'+currentTorneio);
+  allJogos[currentTorneio]=await loadJogosForCurrentTorneio();
+}
 refreshSection(currentSection);
 }
 function refreshSection(s){
@@ -616,17 +665,33 @@ renderContato();
 }
 function formatDate(d){if(!d)return{day:'--',month:'--'};const dt=new Date(d+'T12:00:00');return{day:dt.getDate(),month:dt.toLocaleString('pt-BR',{month:'short'}).toUpperCase()}}
 
+// Texto "Sobre o Torneio" dinâmico — reflete o torneio selecionado
+function renderSobreTorneio(){
+const el=document.getElementById('sobreTorneioBody');if(!el)return;
+const t=curTorneio();
+const FMT={hexagonal:'hexagonal (todos contra todos + cruzamento olímpico)',grupos:'grupos com cruzamento olímpico',quad_corrido:'quadrangular (todos contra todos, pontos corridos)',quad_decisao:'quadrangular com disputa de 3º lugar e grande final',tri_corrido:'triangular (todos contra todos)',tri_final:'triangular com final'};
+let dataFmt='';
+if(t&&t.data){try{dataFmt=new Date(t.data+'T12:00:00').toLocaleDateString('pt-BR')}catch(e){}}
+let html='<p>A <strong>Sampa Volleyball League</strong> realiza torneios rápidos de vôlei Master — resolvidos em um único dia, com <strong>classificação ao vivo</strong> e cruzamento olímpico, no <strong>São Paulo Futebol Clube</strong>, em diferentes categorias.</p>';
+if(t){
+html+=`<p style="margin-top:10px">O torneio <strong>${esc(t.nome||'')}</strong>${t.categoria?` (categoria <strong>${esc(t.categoria)}</strong>)`:''} — ${torneioNaipeLabel(t)}${dataFmt?` — acontece em <strong>${esc(dataFmt)}</strong>`:''}${t.hora_inicio?` a partir das <strong>${esc(t.hora_inicio)}h</strong>`:''}, no formato <strong>${esc(FMT[t.formato_jogos]||t.formato_jogos||'a definir')}</strong>.</p>`;
+}
+html+='<p style="margin-top:10px">Por isso é um torneio <strong>"Fast"</strong> — no mesmo dia conheceremos os primeiros colocados, premiados na hora: <span style="color:var(--red);font-weight:600">uma Liga que vai dar muito o que falar.</span></p>';
+el.innerHTML=html;
+}
+
 // === INICIO ===
 async function renderInicio(){
 renderGaleria();
 renderAoVivo();
-const etapas=await api('/etapas/'+currentNaipe);const c=document.getElementById('nextEtapaCard');
-if(!etapas.length){c.innerHTML='';return}
-const sorted=[...etapas].sort((a,b)=>a.data.localeCompare(b.data));
-const next=sorted.find(e=>e.data>=new Date().toISOString().split('T')[0])||sorted[sorted.length-1];
+renderSobreTorneio();
+const c=document.getElementById('nextEtapaCard');
+const next=curTorneio();
+if(!next){c.innerHTML='';}
+else{
 const d=formatDate(next.data);
-const adiada=next.data==='2026-05-09';
-c.innerHTML=`<div class="next-card${adiada?' next-card-adiada':''}"><div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:12px"><div style="font-family:'Oswald';font-weight:700;font-size:.95rem;letter-spacing:1.5px;text-transform:uppercase">Próxima Etapa</div><div style="position:relative;z-index:2"><span class="badge badge-red">${esc(currentNaipe)}</span></div></div>
+const adiada=!!next.adiado;
+c.innerHTML=`<div class="next-card${adiada?' next-card-adiada':''}"><div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:12px"><div style="font-family:'Oswald';font-weight:700;font-size:.95rem;letter-spacing:1.5px;text-transform:uppercase">Próximo Torneio</div><div style="position:relative;z-index:2"><span class="badge badge-red">${esc(curNaipe())}</span></div></div>
 <div style="display:flex;gap:14px;align-items:flex-start"><div class="etapa-date"><div class="day">${d.day}</div><div class="month">${d.month}</div></div>
 <div style="flex:1;position:relative;z-index:2;${(next.nome||'').toLowerCase().includes('volley fast')?'padding-right:150px':''}"><div style="font-family:'Oswald';font-weight:600;font-size:1.1rem;text-transform:uppercase">${esc(next.nome)}</div>
 <div style="font-size:.85rem;opacity:.8;margin-top:2px">📍 ${esc(next.local)}</div>${next.endereco?`<div style="font-size:.78rem;opacity:.6">${esc(next.endereco)}</div>`:''}
@@ -636,6 +701,7 @@ ${adiada?'':`<button class="btn-inscreva" onclick="switchSection('inscricao')">�
 ${(next.nome||'').toLowerCase().includes('volley fast')?'<img src="/static/volley-fast-2026.jpeg" alt="" style="position:absolute;right:30px;top:50%;transform:translateY(-50%);width:140px;height:140px;border-radius:50%;object-fit:cover;opacity:.9;box-shadow:0 4px 20px rgba(0,0,0,.3);border:3px solid rgba(255,255,255,.2);z-index:5">':''}
 ${adiada?'<div class="adiada-overlay"></div>':''}
 </div>`;
+}
 // Inscription countdown banner
 const bannerEl=document.getElementById('inscricaoBannerHome');
 const resto=tempoRestanteInscricao();
@@ -649,7 +715,7 @@ bannerEl.innerHTML=`<div style="background:linear-gradient(135deg,#1a1a1a,#2d2d2
 renderSponsorsHome();
 }
 
-// === APOIO OFICIAL NA HOME (após Próxima Etapa) ===
+// === APOIO OFICIAL NA HOME (após Próximo Torneio) ===
 async function renderSponsorsHome(){
 const el=document.getElementById('appApoioBlock');
 if(!el)return;
@@ -688,61 +754,69 @@ html+=`<div class="app-apoio-block apoiadores">
 html+=`</div>`;
 el.innerHTML=html;
 }
-// === ETAPAS ===
+// === TORNEIOS ===
 async function renderEtapas(){
-const etapas=await api('/etapas/'+currentNaipe);const list=document.getElementById('etapasList');
+const torneios=allTorneios;const list=document.getElementById('etapasList');
 document.getElementById('etapaForm').style.display=isAdmin?'block':'none';
-if(!etapas.length){list.innerHTML='<div class="empty-state"><div class="icon">📅</div><p>Nenhuma etapa cadastrada</p></div>';return}
-list.innerHTML=etapas.map(e=>{const d=formatDate(e.data);const isVF=(e.nome||'').toLowerCase().includes('volley fast');const adiada=e.data==='2026-05-09';return`<div class="card${adiada?' card-adiada':''}" style="display:flex;gap:12px;align-items:flex-start;position:relative;overflow:hidden">
+if(!torneios.length){list.innerHTML='<div class="empty-state"><div class="icon">📅</div><p>Nenhum torneio cadastrado</p></div>';return}
+list.innerHTML=torneios.map(e=>{const d=formatDate(e.data);const isVF=(e.nome||'').toLowerCase().includes('volley fast');const adiada=!!e.adiado;const sel=e.id===currentTorneio;return`<div class="card${adiada?' card-adiada':''}" style="display:flex;gap:12px;align-items:flex-start;position:relative;overflow:hidden;${sel?'border:2px solid var(--red)':''}">
 <div class="etapa-date"><div class="day">${d.day}</div><div class="month">${d.month}</div></div>
 <div style="flex:1;${isVF?'padding-right:110px':''}"><div style="font-family:'Oswald';font-weight:600;text-transform:uppercase">${esc(e.nome)}</div>
 <div style="font-size:.85rem;color:var(--g400)">📍 ${esc(e.local)}</div>${e.endereco?`<div style="font-size:.78rem;color:var(--g300)">${esc(e.endereco)}</div>`:''}
 ${e.horario?`<div style="font-size:.82rem;color:var(--g400);margin-top:2px">🕐 ${esc(e.horario)}h</div>`:''}
-<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">${e.categoria?`<span class="badge badge-red">${esc(e.categoria)}</span>`:''}${e.formato?`<span class="badge badge-black">${esc(e.formato)}</span>`:''}</div></div>
+<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap"><span class="badge badge-black">${esc(torneioNaipeLabel(e))}</span>${e.categoria?`<span class="badge badge-red">${esc(e.categoria)}</span>`:''}${e.formato_jogos?`<span class="badge badge-black">${esc(e.formato_jogos)}</span>`:''}<span class="badge badge-black">${(allEquipes[e.id]||[]).length||0}/${e.max_equipes||'-'} eq</span></div></div>
 ${isVF?'<img src="/static/volley-fast-2026.jpeg" alt="" style="position:absolute;right:20px;top:50%;transform:translateY(-50%);width:100px;height:100px;border-radius:50%;object-fit:cover;opacity:.9;box-shadow:0 4px 15px rgba(0,0,0,.1)">':''}
 ${isAdmin?`<div style="display:flex;gap:6px;${isVF?'position:absolute;top:10px;right:10px;z-index:20':''}"><button class="btn btn-outline btn-sm" data-eid="${esc(e.id)}" onclick="editarEtapa(this.dataset.eid)">✏</button><button class="btn btn-danger btn-sm" data-eid="${esc(e.id)}" onclick="deleteEtapa(this.dataset.eid)">✕</button></div>`:''}
 ${adiada?'<div class="adiada-overlay"></div>':''}</div>`}).join('');
 }
 async function addEtapa(){
 const editId=document.getElementById('etapaEditId').textContent;
+const naipe=document.getElementById('etapaNaipe').value;
 const nome=document.getElementById('etapaNome').value.trim(),local=document.getElementById('etapaLocal').value.trim();
 const endereco=document.getElementById('etapaEndereco').value.trim(),data=document.getElementById('etapaData').value;
-const categoria=document.getElementById('etapaCat').value.trim(),formato=document.getElementById('etapaFormato').value.trim();
+const categoria=document.getElementById('etapaCat').value.trim(),formato_jogos=document.getElementById('etapaFormato').value;
+const max_equipes=parseInt(document.getElementById('etapaMax').value)||4;
 const horario=document.getElementById('etapaHorario').value.trim();
 if(!nome||!local||!data){showToast('Preencha nome, local e data');return}
+const body={naipe,nome,local,endereco,data,categoria,formato_jogos,max_equipes,horario,hora_inicio:horario};
+let novoId=null;
 if(editId){
-await api('/etapas/'+currentNaipe+'/'+editId,'PUT',{nome,local,endereco,data,categoria,formato,horario});
+await api('/torneios/'+editId,'PUT',body);
 document.getElementById('etapaEditId').textContent='';
-document.querySelector('#etapaForm .card-title').textContent='Nova Etapa';
-showToast('Etapa atualizada!');
+document.querySelector('#etapaForm .card-title').textContent='Novo Torneio';
+showToast('Torneio atualizado!');
 }else{
-await api('/etapas/'+currentNaipe,'POST',{nome,local,endereco,data,categoria,formato,horario});
-showToast('Etapa cadastrada!');
+const r=await api('/torneios','POST',body);novoId=r&&r.id;
+showToast('Torneio cadastrado!');
 }
-['etapaNome','etapaLocal','etapaEndereco','etapaData','etapaCat','etapaFormato','etapaHorario'].forEach(id=>document.getElementById(id).value='');
-renderEtapas();
+['etapaNome','etapaLocal','etapaEndereco','etapaData','etapaCat','etapaHorario'].forEach(id=>document.getElementById(id).value='');
+document.getElementById('etapaMax').value='4';
+await loadTorneios();
+if(novoId){currentTorneio=novoId;renderTorneioSelect();}
+await refreshAll();
 }
 async function editarEtapa(id){
-const etapas=await api('/etapas/'+currentNaipe);
-const e=etapas.find(x=>x.id===id);if(!e)return;
+const e=allTorneios.find(x=>x.id===id);if(!e)return;
+document.getElementById('etapaNaipe').value=e.naipe||'feminino';
 document.getElementById('etapaNome').value=e.nome||'';
 document.getElementById('etapaLocal').value=e.local||'';
 document.getElementById('etapaEndereco').value=e.endereco||'';
 document.getElementById('etapaData').value=e.data||'';
 document.getElementById('etapaCat').value=e.categoria||'';
-document.getElementById('etapaFormato').value=e.formato||'';
-document.getElementById('etapaHorario').value=e.horario||'';
+document.getElementById('etapaFormato').value=e.formato_jogos||'grupos';
+document.getElementById('etapaMax').value=e.max_equipes||4;
+document.getElementById('etapaHorario').value=e.hora_inicio||e.horario||'';
 document.getElementById('etapaEditId').textContent=id;
-document.querySelector('#etapaForm .card-title').textContent='Editar Etapa';
+document.querySelector('#etapaForm .card-title').textContent='Editar Torneio';
 document.getElementById('etapaForm').scrollIntoView({behavior:'smooth'});
-showToast('Editando etapa...');
+showToast('Editando torneio...');
 }
-async function deleteEtapa(id){if(!confirm('Remover?'))return;await api('/etapas/'+currentNaipe+'/'+id,'DELETE');showToast('Removida');renderEtapas()}
+async function deleteEtapa(id){if(!confirm('Remover torneio? As equipes inscritas ficam sem torneio (não são apagadas).'))return;await api('/torneios/'+id,'DELETE');showToast('Torneio removido');if(currentTorneio===id)currentTorneio=null;await refreshAll();}
 
 // === INSCRICAO ===
 function renderInscricao(){
-const eq=allEquipes[currentNaipe];const st=document.getElementById('inscricaoStatus');
-const count=eq.length;const maxEq=allConfig[currentNaipe]?.max_equipes||8;
+const eq=allEquipes[currentTorneio];const st=document.getElementById('inscricaoStatus');
+const count=eq.length;const maxEq=curTorneio()?.max_equipes||8;
 const aberta=inscricaoAberta();
 const resto=tempoRestanteInscricao();
 st.innerHTML=`<div style="margin-bottom:12px;font-size:.82rem;color:var(--g400)">${count}/${maxEq} vagas<div style="background:var(--g100);border-radius:20px;height:8px;margin-top:5px;overflow:hidden"><div style="background:var(--red);height:100%;width:${(count/maxEq)*100}%;border-radius:20px"></div></div></div>`;
@@ -782,7 +856,7 @@ document.querySelector('.step[data-step="equipe"]')?.classList.add('done');
 document.querySelector('.step[data-step="atletas"]')?.classList.add('active');
 document.getElementById('atletaEquipeNome').textContent=currentInscEquipeNome;
 // Check payment status
-const eq=allEquipes[currentNaipe]?.find(e=>e.id===currentInscEquipeId);
+const eq=allEquipes[currentTorneio]?.find(e=>e.id===currentInscEquipeId);
 const pgStatus=teamSession?.pagamento_status||eq?.pagamento_status||'pendente';
 const aviso=document.getElementById('pagamentoAviso');
 const formArea=document.getElementById('atletaFormArea');
@@ -798,11 +872,11 @@ async function inscreverEquipe(){
 if(!inscricaoAberta()){showToast('Inscrições abrem dia 27/04 às 14:00h');return}
 const nome=document.getElementById('eqNome').value.trim(),resp=document.getElementById('eqResp').value.trim(),tel=document.getElementById('eqTel').value.trim();
 if(!nome||!resp){showToast('Preencha nome e responsável');return}
-const res=await api('/equipes/'+currentNaipe,'POST',{nome,responsavel:resp,telefone:tel});
+const res=await api('/equipes','POST',{nome,responsavel:resp,telefone:tel,torneio_id:currentTorneio});
 if(res.error){showToast(res.error);return}
 currentInscEquipeId=res.id;currentInscEquipeNome=res.nome;
 document.getElementById('eqNome').value='';document.getElementById('eqResp').value='';document.getElementById('eqTel').value='';
-allEquipes[currentNaipe]=await api('/equipes/'+currentNaipe);
+allEquipes[currentTorneio]=await api('/equipes?torneio_id='+currentTorneio);
 // Auto-login the new team so backend session is set (required for athlete uploads, etc.)
 const loginRes=await api('/auth/equipe','POST',{login:res.login,senha:res.senha});
 if(loginRes.ok){
@@ -855,7 +929,7 @@ ${(isAdmin||teamSession)?`<button class="btn btn-danger btn-sm" data-aid="${esc(
 async function renderLogoEquipe(){
 const area=document.getElementById('logoEquipeArea');
 if(!currentInscEquipeId){area.innerHTML='';return}
-const eq=allEquipes[currentNaipe]?.find(e=>e.id===currentInscEquipeId);
+const eq=allEquipes[currentTorneio]?.find(e=>e.id===currentInscEquipeId);
 const logoAtual=eq?.logo;
 area.innerHTML=`<div class="card">
 <div class="card-title" style="margin-bottom:10px">🏐 Logo da Equipe</div>
@@ -869,9 +943,9 @@ async function uploadLogoEquipe(){
 const fileInput=document.getElementById('teamLogoFile');
 if(!fileInput?.files.length){showToast('Selecione uma imagem');return}
 const fd=new FormData();fd.append('file',fileInput.files[0]);
-const r=await fetch('/api/equipes/'+currentNaipe+'/'+currentInscEquipeId+'/logo',{method:'POST',body:fd,credentials:'same-origin'});
+const r=await fetch('/api/equipes/'+currentInscEquipeId+'/logo',{method:'POST',body:fd,credentials:'same-origin'});
 const res=await r.json();
-if(res.ok){showToast('Logo enviado!');allEquipes[currentNaipe]=await api('/equipes/'+currentNaipe);renderLogoEquipe()}else{showToast(res.error||'Erro')}
+if(res.ok){showToast('Logo enviado!');allEquipes[currentTorneio]=await api('/equipes?torneio_id='+currentTorneio);renderLogoEquipe()}else{showToast(res.error||'Erro')}
 }
 async function renderComprovante(){
 const area=document.getElementById('comprovanteArea');
@@ -900,7 +974,7 @@ async function uploadComprovante(){
 const fileInput=document.getElementById('comprovanteFile');
 if(!fileInput.files.length){showToast('Selecione um arquivo');return}
 const fd=new FormData();fd.append('file',fileInput.files[0]);
-const r=await fetch(`/api/equipes/${currentNaipe}/${currentInscEquipeId}/comprovante`,{method:'POST',body:fd,credentials:'same-origin'});
+const r=await fetch(`/api/equipes/${currentInscEquipeId}/comprovante`,{method:'POST',body:fd,credentials:'same-origin'});
 const res=await r.json();
 if(res.ok){showToast('Comprovante enviado! Aguarde aprovação.')}else{showToast(res.error||'Erro')}
 }
@@ -909,10 +983,10 @@ function finalizarInscricao(){showToast('Inscrição salva!');logoutTeam()}
 
 // === EQUIPES ===
 async function renderEquipes(){
-const eqAll=allEquipes[currentNaipe]||[];
+const eqAll=allEquipes[currentTorneio]||[];
 // Filtra equipes de teste — elas só aparecem no card Modo Teste do Painel
 const eq=eqAll.filter(e=>!e.is_test);
-const maxEq=allConfig[currentNaipe]?.max_equipes||8;
+const maxEq=curTorneio()?.max_equipes||8;
 document.getElementById('equipesCount').innerHTML=`<span class="badge ${eq.length>=maxEq?'badge-green':'badge-gray'}">${eq.length}/${maxEq} equipes</span>`;
 // Botão WhatsApp (só admin)
 const actEl=document.getElementById('equipesActions');
@@ -924,26 +998,57 @@ if(actEl){
     actEl.style.display='none';
   }
 }
-if(!eq.length){document.getElementById('equipesList').innerHTML='<div class="empty-state"><div class="icon">🏐</div><p>Nenhuma equipe inscrita</p></div>';return}
-const adminEq=isAdmin?await api('/equipes/'+currentNaipe+'/admin'):null;
-document.getElementById('equipesList').innerHTML=`<div class="card"><div class="table-wrap"><table>
-<tr><th>#</th><th>Equipe</th><th>Responsável</th>${isAdmin?'<th>Status</th><th>Login</th><th></th><th></th>':''}</tr>
+const adminEq=isAdmin?await api('/equipes/admin?torneio_id='+currentTorneio):null;
+let html='';
+if(!eq.length){
+  html='<div class="empty-state"><div class="icon">🏐</div><p>Nenhuma equipe neste torneio</p></div>';
+}else{
+  html=`<div class="card"><div class="table-wrap"><table>
+<tr><th>#</th><th>Equipe</th><th>Responsável</th>${isAdmin?'<th>Status</th><th>Login</th><th>Mover p/</th><th></th><th></th>':''}</tr>
 ${eq.map((e,i)=>{
 const ae=adminEq?.find(a=>a.id===e.id);
 const pgBadge=ae?`<span class="badge ${ae.pagamento_status==='aprovado'?'badge-green':'badge-yellow'}">${esc(ae.pagamento_status)}</span>`:'';
 return`<tr><td style="font-family:'Oswald';font-weight:600;color:var(--g300)">${i+1}</td>
 <td style="font-weight:600">${teamDisplay(e.id)}</td><td style="color:var(--g400);font-size:.82rem">${esc(e.responsavel)}</td>
 ${isAdmin?`<td>${pgBadge}</td><td style="font-size:.75rem;color:var(--g400)">${esc(ae?.login||'')}</td>
+<td>${moverSelectHtml(ae||e)}</td>
 <td><button class="btn btn-outline btn-sm" data-eid="${esc(e.id)}" onclick="adminVerEquipe(this.dataset.eid)">👁</button></td>
 <td><button class="btn btn-danger btn-sm" data-eid="${esc(e.id)}" onclick="deleteEquipe(this.dataset.eid)">✕</button></td>`
 :''}
 </tr>`}).join('')}</table></div></div>`;
 }
+// Grupo de equipes SEM torneio (órfãs) — admin atribui manualmente (caso QUEEN do SPEC)
+if(isAdmin){
+  const orfas=((await api('/equipes/admin?torneio_id=null'))||[]).filter(e=>!e.is_test);
+  if(orfas.length){
+    html+=`<div class="card" style="margin-top:14px;border:2px solid #f59e0b">
+<div class="card-title" style="color:#f59e0b;margin-bottom:8px">⚠ Sem torneio definido (${orfas.length})</div>
+<div style="font-size:.8rem;color:var(--g400);margin-bottom:10px">Equipes inscritas antes da separação por torneio. Escolha o torneio de cada uma.</div>
+<div class="table-wrap"><table><tr><th>Equipe</th><th>Responsável</th><th>Atribuir a</th><th></th></tr>
+${orfas.map(e=>`<tr><td style="font-weight:600">${esc(e.nome)}</td>
+<td style="color:var(--g400);font-size:.82rem">${esc(e.responsavel||'')}</td>
+<td>${moverSelectHtml(e)}</td>
+<td><button class="btn btn-danger btn-sm" data-eid="${esc(e.id)}" onclick="deleteEquipe(this.dataset.eid)">✕</button></td></tr>`).join('')}
+</table></div></div>`;
+  }
+}
+document.getElementById('equipesList').innerHTML=html;
+}
+// Select de mover equipe entre torneios (usado na lista e no grupo de órfãs)
+function moverSelectHtml(e){
+const opts=allTorneios.map(t=>`<option value="${esc(t.id)}"${t.id===e.torneio_id?' selected':''}>${esc(torneioLabel(t))}</option>`).join('');
+return `<select class="form-input" style="padding:5px;font-size:.72rem;max-width:170px" data-eid="${esc(e.id)}" onchange="moverEquipe(this.dataset.eid,this.value)"><option value=""${!e.torneio_id?' selected':''}>— sem torneio —</option>${opts}</select>`;
+}
+async function moverEquipe(eid,tid){
+const r=await api('/equipes/'+eid+'/mover','POST',{torneio_id_novo:tid||null});
+if(r&&r.ok){showToast('Equipe movida'+(tid?'':' (sem torneio)'));await refreshAll();}
+else showToast(r?.error||'Erro ao mover');
+}
 // Lista pra WhatsApp — abre modal com responsáveis e telefones formatados pra copiar
 async function abrirListaWhatsApp(){
-  const adminEq=await api('/equipes/'+currentNaipe+'/admin');
+  const adminEq=await api('/equipes/admin?torneio_id='+currentTorneio);
   const eq=(adminEq||[]).filter(e=>!e.is_test);
-  const naipeLabel=currentNaipe==='masculino'?'Masculino':'Feminino';
+  const naipeLabel=curNaipe()==='masculino'?'Masculino':'Feminino';
   // Estado do modal: filtro de pagamento
   window._wlistFiltro=window._wlistFiltro||'pagas'; // 'pagas' | 'todas'
   function montarTexto(filtro){
@@ -1024,7 +1129,7 @@ document.getElementById('atletasModalBody').innerHTML=html;openModal('atletasMod
 }
 async function adminVerEquipe(eid){
 const atletas=await api('/atletas/'+eid+'/full');
-const adminEq=await api('/equipes/'+currentNaipe+'/admin');
+const adminEq=await api('/equipes/admin?torneio_id='+currentTorneio);
 const eq=adminEq.find(e=>e.id===eid);
 if(!eq){showToast('Equipe não encontrada');return}
 let html=`<div style="margin-bottom:8px"><strong>${esc(eq.nome)}</strong></div>`;
@@ -1049,14 +1154,14 @@ ${eq.foto?`<img src="/api/uploads/${esc(eq.foto)}" alt="" style="width:100%;max-
 html+=`<div style="font-size:.82rem;color:var(--g400);margin-bottom:8px">${atletas.length} atleta(s)</div>`;
 html+=atletas.map((a,i)=>{let dn=a.data_nascimento||'';if(dn&&dn.includes('-')){try{const p=dn.split('-');dn=p[2]+'/'+p[1]+'/'+p[0]}catch(e){}}
 return`<div class="atleta-item"><span style="font-family:'Oswald';font-weight:700;color:var(--red);width:22px">${i+1}</span><div style="flex:1"><strong>${esc(a.nome_completo)}</strong><br><span style="color:var(--g400);font-size:.78rem">${esc(dn)} · ${esc(a.tipo_documento)} ${esc(a.numero_documento)}</span></div></div>`}).join('');
-html+=`<div style="margin-top:14px"><a href="/api/cartelao/${esc(currentNaipe)}/${esc(eid)}" target="_blank" class="btn btn-red btn-full">🖨 Imprimir Cartelão</a></div>`;
+html+=`<div style="margin-top:14px"><a href="/api/cartelao/${esc(eid)}" target="_blank" class="btn btn-red btn-full">🖨 Imprimir Cartelão</a></div>`;
 document.getElementById('atletasModalBody').innerHTML=html;openModal('atletasModal');
 }
 async function adminUploadFoto(eid){
 const fileInput=document.getElementById('adminFotoEquipe');
 if(!fileInput?.files.length){showToast('Selecione uma foto');return}
 const fd=new FormData();fd.append('file',fileInput.files[0]);
-const r=await fetch('/api/equipes/'+currentNaipe+'/'+eid+'/foto',{method:'POST',body:fd,credentials:'same-origin'});
+const r=await fetch('/api/equipes/'+eid+'/foto',{method:'POST',body:fd,credentials:'same-origin'});
 const res=await r.json();
 if(res.ok){showToast('Foto enviada!');adminVerEquipe(eid,document.querySelector('#atletasModalBody strong')?.textContent||'')}else{showToast(res.error||'Erro')}
 }
@@ -1064,17 +1169,17 @@ async function adminUploadLogo(eid){
 const fileInput=document.getElementById('adminLogoEquipe');
 if(!fileInput?.files.length){showToast('Selecione uma imagem');return}
 const fd=new FormData();fd.append('file',fileInput.files[0]);
-const r=await fetch('/api/equipes/'+currentNaipe+'/'+eid+'/logo',{method:'POST',body:fd,credentials:'same-origin'});
+const r=await fetch('/api/equipes/'+eid+'/logo',{method:'POST',body:fd,credentials:'same-origin'});
 const res=await r.json();
-if(res.ok){showToast('Logo enviado!');allEquipes[currentNaipe]=await api('/equipes/'+currentNaipe);adminVerEquipe(eid,document.querySelector('#atletasModalBody strong')?.textContent||'')}else{showToast(res.error||'Erro')}
+if(res.ok){showToast('Logo enviado!');allEquipes[currentTorneio]=await api('/equipes?torneio_id='+currentTorneio);adminVerEquipe(eid,document.querySelector('#atletasModalBody strong')?.textContent||'')}else{showToast(res.error||'Erro')}
 }
-async function setPagamento(eid,status){await api(`/equipes/${currentNaipe}/${eid}/pagamento`,'POST',{pagamento_status:status});showToast(status==='aprovado'?'Pagamento aprovado!':'Pagamento pendente');closeModal('atletasModal');renderEquipes()}
-async function resetSenha(eid){const r=await api(`/equipes/${currentNaipe}/${eid}/reset-senha`,'POST');if(r.ok){showToast('Nova senha: '+r.nova_senha);closeModal('atletasModal');renderEquipes()}}
-async function deleteEquipe(id){if(!confirm('Remover equipe?'))return;await api('/equipes/'+currentNaipe+'/'+id,'DELETE');showToast('Removida');allEquipes[currentNaipe]=await api('/equipes/'+currentNaipe);allGrupos[currentNaipe]=await api('/grupos/'+currentNaipe);renderEquipes();renderGrupos()}
+async function setPagamento(eid,status){await api(`/equipes/${eid}/pagamento`,'POST',{pagamento_status:status});showToast(status==='aprovado'?'Pagamento aprovado!':'Pagamento pendente');closeModal('atletasModal');renderEquipes()}
+async function resetSenha(eid){const r=await api(`/equipes/${eid}/reset-senha`,'POST');if(r.ok){showToast('Nova senha: '+r.nova_senha);closeModal('atletasModal');renderEquipes()}}
+async function deleteEquipe(id){if(!confirm('Remover equipe?'))return;await api('/equipes/'+id,'DELETE');showToast('Removida');allEquipes[currentTorneio]=await api('/equipes?torneio_id='+currentTorneio);allGrupos[currentTorneio]=await api('/grupos/'+currentTorneio);renderEquipes();renderGrupos()}
 
 // === GRUPOS ===
 function renderGrupos(){
-const g=allGrupos[currentNaipe];const fmt=allConfig[currentNaipe]?.formato_jogos||'grupos';
+const g=allGrupos[currentTorneio];const fmt=curTorneio()?.formato_jogos||'grupos';
 const actEl=document.getElementById('gruposActions');
 if(isAdmin){actEl.style.display='block';
 actEl.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
@@ -1085,11 +1190,11 @@ actEl.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:cen
 <option value="quad_corrido" ${fmt==='quad_corrido'?'selected':''}>Quadrangular — pontos corridos</option>
 <option value="quad_decisao" ${fmt==='quad_decisao'?'selected':''}>Quadrangular — com final + 3º</option></select>
 <div style="display:flex;align-items:center;gap:6px"><label class="form-label" style="margin:0;white-space:nowrap">Máx:</label>
-<input class="form-input" id="maxEqInput" type="number" min="3" max="12" value="${allConfig[currentNaipe]?.max_equipes||8}" style="width:60px;padding:8px;text-align:center" onchange="salvarMaxEquipes()"></div>
+<input class="form-input" id="maxEqInput" type="number" min="3" max="12" value="${curTorneio()?.max_equipes||8}" style="width:60px;padding:8px;text-align:center" onchange="salvarMaxEquipes()"></div>
 <div style="display:flex;align-items:center;gap:6px"><label class="form-label" style="margin:0;white-space:nowrap">⏰ Início:</label>
-<input class="form-input" id="horaInicioInput" type="time" value="${allConfig[currentNaipe]?.hora_inicio||'08:30'}" style="width:110px;padding:8px;text-align:center" onchange="salvarHorarios()"></div>
+<input class="form-input" id="horaInicioInput" type="time" value="${curTorneio()?.hora_inicio||'08:30'}" style="width:110px;padding:8px;text-align:center" onchange="salvarHorarios()"></div>
 <div style="display:flex;align-items:center;gap:6px"><label class="form-label" style="margin:0;white-space:nowrap">Intervalo (min):</label>
-<input class="form-input" id="intervaloInput" type="number" min="15" max="240" step="5" value="${allConfig[currentNaipe]?.intervalo_min||75}" style="width:75px;padding:8px;text-align:center" onchange="salvarHorarios()"></div>
+<input class="form-input" id="intervaloInput" type="number" min="15" max="240" step="5" value="${curTorneio()?.intervalo_min||75}" style="width:75px;padding:8px;text-align:center" onchange="salvarHorarios()"></div>
 </div>`}
 else{actEl.style.display='none'}
 // Quantos classificam (cor vermelha): hex=4, quad_corrido=1 (campeão), quad_decisao=2 (final), grupos=2 por grupo
@@ -1103,28 +1208,36 @@ const labelA=fmt==='hexagonal'?'Classificação Geral':fmt==='quad_corrido'?'Qua
 if(fmtGrupoUnico){document.getElementById('gruposDisplay').innerHTML=renderG('A',g.A||[],labelA);document.getElementById('gruposDisplay').style.gridTemplateColumns='1fr'}
 else{document.getElementById('gruposDisplay').innerHTML=renderG('A',g.A||[],'Grupo A')+renderG('B',g.B||[],'Grupo B');document.getElementById('gruposDisplay').style.gridTemplateColumns='1fr 1fr'}
 }
-async function sortearGrupos(){if(!confirm('Sortear?'))return;allGrupos[currentNaipe]=await api('/grupos/'+currentNaipe+'/sorteio','POST');showToast('Sorteados!');renderGrupos()}
-async function salvarFormato(){const fmt=document.getElementById('fmtSelect').value;allConfig[currentNaipe]=await api('/config/'+currentNaipe,'POST',{formato_jogos:fmt});showToast('Formato: '+fmt);renderGrupos()}
-async function salvarMaxEquipes(){const v=parseInt(document.getElementById('maxEqInput').value)||8;allConfig[currentNaipe]=await api('/config/'+currentNaipe,'POST',{max_equipes:v});showToast('Máx: '+v)}
+async function sortearGrupos(){if(!confirm('Sortear?'))return;allGrupos[currentTorneio]=await api('/grupos/'+currentTorneio+'/sorteio','POST');showToast('Sorteados!');renderGrupos()}
+// Atualiza a config embutida do torneio atual (PUT /torneios/<id>) e sincroniza o cache local
+async function updateTorneioConfig(patch){
+if(!currentTorneio){showToast('Selecione um torneio');return null}
+const t=await api('/torneios/'+currentTorneio,'PUT',patch);
+const i=allTorneios.findIndex(x=>x.id===currentTorneio);
+if(i>=0&&t&&t.id)allTorneios[i]=t;
+return t;
+}
+async function salvarFormato(){const fmt=document.getElementById('fmtSelect').value;await updateTorneioConfig({formato_jogos:fmt});showToast('Formato: '+fmt);renderGrupos()}
+async function salvarMaxEquipes(){const v=parseInt(document.getElementById('maxEqInput').value)||8;await updateTorneioConfig({max_equipes:v});showToast('Máx: '+v)}
 async function salvarHorarios(){
 const hora=document.getElementById('horaInicioInput').value||'08:30';
 const interv=parseInt(document.getElementById('intervaloInput').value)||75;
-allConfig[currentNaipe]=await api('/config/'+currentNaipe,'POST',{hora_inicio:hora,intervalo_min:interv});
+await updateTorneioConfig({hora_inicio:hora,intervalo_min:interv});
 showToast(`Horários: início ${hora}, intervalo ${interv}min`);
 }
 async function atualizarHorarios(){
 if(!confirm('Aplicar os horários (início e intervalo configurados) na tabela atual?\n\nIsto NÃO altera placares, apenas atualiza o horário de cada jogo.'))return;
-const r=await api('/jogos/'+currentNaipe+'/atualizar-horarios','POST',{});
-if(r.ok){showToast(`✓ Horários atualizados em ${r.count} jogos`);allJogos[currentNaipe]=await loadJogosForCurrentNaipe();renderJogos()}
+const r=await api('/jogos/'+currentTorneio+'/atualizar-horarios','POST',{});
+if(r.ok){showToast(`✓ Horários atualizados em ${r.count} jogos`);allJogos[currentTorneio]=await loadJogosForCurrentTorneio();renderJogos()}
 else{showToast(r.error||'Erro')}
 }
 
 // === JOGOS ===
 function renderJogos(){
-const jogosAll=allJogos[currentNaipe]||[];
+const jogosAll=allJogos[currentTorneio]||[];
 // Filtra jogos de teste — só visíveis dentro do modal pelo card Modo Teste
 const jogos=jogosAll.filter(j=>!j.is_test);
-const fmt=allConfig[currentNaipe]?.formato_jogos||'grupos';
+const fmt=curTorneio()?.formato_jogos||'grupos';
 const fmtGrupoUnico=fmt==='hexagonal'||fmt==='quad_corrido'||fmt==='quad_decisao';
 document.getElementById('jogosActions').style.display=isAdmin?'block':'none';
 const hex=jogos.filter(j=>j.fase==='hexagonal'),gj=jogos.filter(j=>j.fase==='grupos');
@@ -1158,12 +1271,12 @@ ${p.length?`<div class="parciais-row">${p.map(x=>`<span class="parcial-badge">${
 async function openScoreEdit(jid){
 if(!isAdmin)return;
 // Recarrega o jogo do servidor pra pegar o estado mais atual (em_andamento, set_atual, etc.)
-allJogos[currentNaipe]=await loadJogosForCurrentNaipe();
-const j=allJogos[currentNaipe].find(x=>x.id===jid);if(!j)return;
+allJogos[currentTorneio]=await loadJogosForCurrentTorneio();
+const j=allJogos[currentTorneio].find(x=>x.id===jid);if(!j)return;
 const eA=getEquipeName(j.equipe_a),eB=getEquipeName(j.equipe_b);
 const needsTeams=(j.fase==='semi'||j.fase==='final'||j.fase==='terceiro')&&!j.equipe_a;
 let tsel='';
-if(needsTeams){const eq=allEquipes[currentNaipe];
+if(needsTeams){const eq=allEquipes[currentTorneio];
 tsel=`<div class="form-group"><label class="form-label">Equipe A</label><select class="form-input" id="scoreEqA"><option value="">Selecione</option>${eq.map(e=>`<option value="${esc(e.id)}">${esc(e.nome)}</option>`).join('')}</select></div>
 <div class="form-group"><label class="form-label">Equipe B</label><select class="form-input" id="scoreEqB"><option value="">Selecione</option>${eq.map(e=>`<option value="${esc(e.id)}">${esc(e.nome)}</option>`).join('')}</select></div>`}
 
@@ -1286,7 +1399,7 @@ ${aviso8}
 let liveJid=null,liveBuffer={a:0,b:0},liveSyncTimer=null,liveKbdHandler=null;
 function attachLiveHandlers(jid){
 liveJid=jid;
-const j=allJogos[currentNaipe].find(x=>x.id===jid);
+const j=allJogos[currentTorneio].find(x=>x.id===jid);
 const sa=j?.set_atual||{pontos_a:0,pontos_b:0};
 liveBuffer={a:sa.pontos_a|0,b:sa.pontos_b|0};
 // Atalhos de teclado
@@ -1326,7 +1439,7 @@ const eqA=document.getElementById('scoreEqA'),eqB=document.getElementById('score
 if(eqA?.value)body.equipe_a=eqA.value;
 if(eqB?.value)body.equipe_b=eqB.value;
 // Pega o jogo atual pra saber se já tem parciais (= não é o set 1)
-const jogoExistente=allJogos[currentNaipe].find(x=>x.id===jid);
+const jogoExistente=allJogos[currentTorneio].find(x=>x.id===jid);
 const parciaisJa=(jogoExistente?.parciais||[]).length;
 // Se for set 1 (sem parciais ainda), pergunta o lado
 if(parciaisJa===0){
@@ -1338,10 +1451,10 @@ const escolha=await perguntarLado(`Set 1 — Quem começa à esquerda da quadra?
 if(escolha===null)return; // cancelou
 body.lado_esq=escolha;
 }
-const r=await api('/jogos/'+currentNaipe+'/'+jid+'/iniciar','POST',body);
+const r=await api('/jogos/'+currentTorneio+'/'+jid+'/iniciar','POST',body);
 if(r.error){showToast(r.error);return}
 showToast('Partida iniciada!');
-allJogos[currentNaipe]=await loadJogosForCurrentNaipe();
+allJogos[currentTorneio]=await loadJogosForCurrentTorneio();
 openScoreEdit(jid);
 }
 
@@ -1375,20 +1488,20 @@ b.onmouseleave=()=>{if(!b.dataset.cancel){b.style.background='rgba(227,27,35,.15
 // Confirma o lado escolhido no tie-break
 async function confirmarLado(eid){
 if(!liveJid)return;
-const r=await api('/jogos/'+currentNaipe+'/'+liveJid+'/lado','POST',{lado_esq:eid});
+const r=await api('/jogos/'+currentTorneio+'/'+liveJid+'/lado','POST',{lado_esq:eid});
 if(r.error){showToast(r.error);return}
-const j=allJogos[currentNaipe].find(x=>x.id===liveJid);
+const j=allJogos[currentTorneio].find(x=>x.id===liveJid);
 if(j)j._tieBreakConfirmed=true;
 showToast('Lado confirmado');
-allJogos[currentNaipe]=await loadJogosForCurrentNaipe();
+allJogos[currentTorneio]=await loadJogosForCurrentTorneio();
 // Re-mark
-const jx=allJogos[currentNaipe].find(x=>x.id===liveJid);
+const jx=allJogos[currentTorneio].find(x=>x.id===liveJid);
 if(jx)jx._tieBreakConfirmed=true;
 openScoreEdit(liveJid);
 }
 // Mantém o lado padrão (default vindo do set 2)
 function confirmarTieBreakManter(){
-const j=allJogos[currentNaipe].find(x=>x.id===liveJid);
+const j=allJogos[currentTorneio].find(x=>x.id===liveJid);
 if(j)j._tieBreakConfirmed=true;
 showToast('Mantido');
 openScoreEdit(liveJid);
@@ -1406,11 +1519,11 @@ liveSyncTimer=setTimeout(syncLivePts,350);
 async function syncLivePts(){
 if(!liveJid)return;
 try{
-const r=await api('/jogos/'+currentNaipe+'/'+liveJid+'/pontos','POST',{pontos_a:liveBuffer.a,pontos_b:liveBuffer.b});
+const r=await api('/jogos/'+currentTorneio+'/'+liveJid+'/pontos','POST',{pontos_a:liveBuffer.a,pontos_b:liveBuffer.b});
 if(r&&r.troca_acionada){
 showToast('🔄 Lados trocados — 8º ponto do tie-break');
 // Recarrega o jogo e redesenha pra mostrar nomes nos lados corretos
-allJogos[currentNaipe]=await loadJogosForCurrentNaipe();
+allJogos[currentTorneio]=await loadJogosForCurrentTorneio();
 openScoreEdit(liveJid);
 }
 }catch(e){console.warn('sync falhou:',e)}
@@ -1431,40 +1544,40 @@ showToast('Ajustado');
 async function encerrarSetAoVivo(){
 if(!liveJid)return;
 clearTimeout(liveSyncTimer);await syncLivePts();
-const r=await api('/jogos/'+currentNaipe+'/'+liveJid+'/encerrar-set','POST',{});
+const r=await api('/jogos/'+currentTorneio+'/'+liveJid+'/encerrar-set','POST',{});
 if(r.error){showToast(r.error);return}
 const novoSet=r.jogo?.set_atual?.numero;
 if(novoSet===2){showToast('Set 1 encerrado · Set 2: lados invertidos')}
 else if(novoSet===3){showToast('Set 2 encerrado · Tie-break — confirme os lados')}
 else{showToast('Set encerrado')}
-allJogos[currentNaipe]=await loadJogosForCurrentNaipe();
+allJogos[currentTorneio]=await loadJogosForCurrentTorneio();
 openScoreEdit(liveJid);
 }
 async function encerrarPartidaAoVivo(){
 if(!liveJid)return;
 if(!confirm('Encerrar a partida? A classificação será atualizada.'))return;
 clearTimeout(liveSyncTimer);await syncLivePts();
-const r=await api('/jogos/'+currentNaipe+'/'+liveJid+'/encerrar','POST',{});
+const r=await api('/jogos/'+currentTorneio+'/'+liveJid+'/encerrar','POST',{});
 if(r.error){showToast(r.error);return}
 showToast('Partida encerrada!');
 liveJid=null;detachLiveKbd();
-allJogos[currentNaipe]=await loadJogosForCurrentNaipe();
+allJogos[currentTorneio]=await loadJogosForCurrentTorneio();
 closeModal('scoreModal');
 renderJogos();renderClassificacao();renderAoVivo();
 }
 async function pausarAoVivo(){
 if(!liveJid)return;
 clearTimeout(liveSyncTimer);await syncLivePts();
-await api('/jogos/'+currentNaipe+'/'+liveJid+'/pausar','POST',{});
+await api('/jogos/'+currentTorneio+'/'+liveJid+'/pausar','POST',{});
 showToast('Pausado. Os pontos foram salvos.');
 liveJid=null;detachLiveKbd();
-allJogos[currentNaipe]=await loadJogosForCurrentNaipe();
+allJogos[currentTorneio]=await loadJogosForCurrentTorneio();
 closeModal('scoreModal');renderJogos();
 }
 async function editarParcial(idx){
 if(!liveJid)return;
 const i=parseInt(idx);
-const j=allJogos[currentNaipe].find(x=>x.id===liveJid);
+const j=allJogos[currentTorneio].find(x=>x.id===liveJid);
 const cur=(j?.parciais||[])[i]||'0-0';
 const a=prompt(`SET ${i+1} — Pontos da equipe A:`,cur.split('-')[0]);
 if(a===null)return;
@@ -1472,10 +1585,10 @@ const b=prompt(`SET ${i+1} — Pontos da equipe B:`,cur.split('-')[1]);
 if(b===null)return;
 const pa=parseInt(a)||0,pb=parseInt(b)||0;
 if(pa===pb){showToast('Empate não permitido');return}
-const r=await api('/jogos/'+currentNaipe+'/'+liveJid+'/parcial/'+i,'PUT',{pontos_a:pa,pontos_b:pb});
+const r=await api('/jogos/'+currentTorneio+'/'+liveJid+'/parcial/'+i,'PUT',{pontos_a:pa,pontos_b:pb});
 if(r.error){showToast(r.error);return}
 showToast('Parcial atualizada');
-allJogos[currentNaipe]=await loadJogosForCurrentNaipe();
+allJogos[currentTorneio]=await loadJogosForCurrentTorneio();
 openScoreEdit(liveJid);
 }
 async function saveScore(jid,fin){
@@ -1484,18 +1597,18 @@ const ps=document.getElementById('parciais').value.trim(),parciais=ps?ps.split('
 const body={sets_a:sa,sets_b:sb,parciais,finalizado:fin};
 const eqA=document.getElementById('scoreEqA'),eqB=document.getElementById('scoreEqB');
 if(eqA?.value)body.equipe_a=eqA.value;if(eqB?.value)body.equipe_b=eqB.value;
-await api('/jogos/'+currentNaipe+'/'+jid,'PUT',body);closeModal('scoreModal');showToast(fin?'Finalizado!':'Salvo');
-allJogos[currentNaipe]=await loadJogosForCurrentNaipe();renderJogos();
+await api('/jogos/'+currentTorneio+'/'+jid,'PUT',body);closeModal('scoreModal');showToast(fin?'Finalizado!':'Salvo');
+allJogos[currentTorneio]=await loadJogosForCurrentTorneio();renderJogos();
 }
-async function gerarJogos(){if(!confirm('Gerar jogos?'))return;allJogos[currentNaipe]=await api('/jogos/'+currentNaipe+'/gerar','POST');showToast('Gerados!');renderJogos()}
+async function gerarJogos(){if(!confirm('Gerar jogos?'))return;allJogos[currentTorneio]=await api('/jogos/'+currentTorneio+'/gerar','POST');showToast('Gerados!');renderJogos()}
 
 // === CLASSIFICACAO ===
 async function renderClassificacao(){
-const fmt=allConfig[currentNaipe]?.formato_jogos||'grupos';
+const fmt=curTorneio()?.formato_jogos||'grupos';
 const fmtGrupoUnico=fmt==='hexagonal'||fmt==='quad_corrido'||fmt==='quad_decisao';
 // Quantos classificam: hex=4, quad_corrido=1 (só campeão), quad_decisao=2 (vão à final), grupos=2/grupo
 const topN=fmt==='hexagonal'?4:fmt==='quad_corrido'?1:fmt==='quad_decisao'?2:2;
-const renderT=async(g,label)=>{const d=await api('/classificacao/'+currentNaipe+'/'+g);
+const renderT=async(g,label)=>{const d=await api('/classificacao/'+currentTorneio+'/'+g);
 if(!d.length)return`<div class="empty-state"><p>Sem dados — ${label}</p></div>`;
 return`<div class="card"><div class="card-title" style="margin-bottom:10px">${label}</div><div class="table-wrap"><table>
 <tr><th>#</th><th>Equipe</th><th>J</th><th>V</th><th>D</th><th>SP</th><th>SC</th><th>SD</th><th>PTS</th></tr>
@@ -1509,8 +1622,8 @@ else{document.getElementById('classGrupoA').innerHTML=await renderT('A','Grupo A
 }
 // === REGULAMENTO ===
 async function renderRegulamento(){
-const res=await api('/regulamento/'+currentNaipe);const txt=res.regulamento||'';
-const naipeLabel=currentNaipe==='masculino'?'Masculino':'Feminino';
+const res=await api('/regulamento/'+currentTorneio);const txt=res.regulamento||'';
+const naipeLabel=curNaipe()==='masculino'?'Masculino':'Feminino';
 const logoH=`<div style="text-align:center;padding:24px 0 16px"><img src="/static/logo.jpeg" style="width:120px;filter:drop-shadow(0 4px 10px rgba(0,0,0,.15))"><div style="font-family:'Oswald';font-weight:700;font-size:1.2rem;letter-spacing:2px;text-transform:uppercase;margin-top:10px">Sampa Volleyball <span style="color:var(--red)">League</span></div><div style="font-family:'Barlow Condensed';font-weight:500;color:var(--g400);font-size:.85rem;letter-spacing:1.5px;text-transform:uppercase;margin-top:4px">Regulamento Oficial — ${naipeLabel}</div></div>`;
 const btnArea=document.getElementById('regulamentoBtnArea');
 btnArea.innerHTML=txt?`<div style="display:flex;gap:8px;margin-bottom:14px"><button class="btn btn-red" onclick="imprimirRegulamento()">🖨 Imprimir / Salvar PDF</button></div>`:'';
@@ -1523,7 +1636,7 @@ document.getElementById('regulamentoView').innerHTML=txt?`${logoH}<div class="ca
 function imprimirRegulamento(){const content=document.getElementById('regulamentoView').innerHTML;const win=window.open('','_blank');
 win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Regulamento SVL</title><link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Barlow',sans-serif;padding:20px;max-width:800px;margin:0 auto}img{display:block;margin:0 auto}.card{background:#fff;padding:24px;border:1px solid #ebebed;border-radius:12px}.regulamento-content{font-size:.92rem;line-height:1.8;color:#3f3f46;white-space:pre-wrap}@media print{body{padding:10px}.card{border:none;padding:10px}}</style></head><body>${content}<script>window.onload=function(){window.print()}<\/script></body></html>`);win.document.close()}
-async function salvarRegulamento(){await api('/regulamento/'+currentNaipe,'POST',{regulamento:document.getElementById('regulamentoText').value});showToast('Regulamento '+currentNaipe+' salvo!');renderRegulamento()}
+async function salvarRegulamento(){await api('/regulamento/'+currentTorneio,'POST',{regulamento:document.getElementById('regulamentoText').value});showToast('Regulamento salvo!');renderRegulamento()}
 
 // === BLOCKED IPs ===
 async function loadBlockedIps(){
@@ -1547,10 +1660,10 @@ let aoVivoRefreshTimer=null;
 async function renderAoVivo(){
 const el=document.getElementById('aoVivoCard');
 if(!el)return;
-const jogos=allJogos[currentNaipe]||[];
+const jogos=allJogos[currentTorneio]||[];
 // Busca jogo em andamento via endpoint específico (sempre atualizado)
 let liveJogo=null;
-try{liveJogo=await api('/jogos/'+currentNaipe+'/aovivo')}catch(e){}
+try{liveJogo=await api('/jogos/'+currentTorneio+'/aovivo')}catch(e){}
 const finalizados=jogos.filter(j=>j.finalizado).slice(-3);
 const pendentes=jogos.filter(j=>!j.finalizado&&!j.em_andamento&&j.equipe_a&&j.equipe_b).slice(0,3);
 
@@ -1620,7 +1733,7 @@ el.innerHTML=html;
 if(aoVivoRefreshTimer)clearTimeout(aoVivoRefreshTimer);
 if(currentSection==='inicio'&&!liveJid){
 aoVivoRefreshTimer=setTimeout(async()=>{
-allJogos[currentNaipe]=await loadJogosForCurrentNaipe();
+allJogos[currentTorneio]=await loadJogosForCurrentTorneio();
 renderAoVivo();
 },10000);
 }
@@ -1704,9 +1817,9 @@ function cUpdate(id){const s=cState[id];const track=document.getElementById('tra
 async function renderFotoEquipe(){
 const area=document.getElementById('fotoEquipeArea');
 if(!currentInscEquipeId){area.innerHTML='';return}
-const equipes=await api('/equipes/'+currentNaipe);
+const equipes=await api('/equipes?torneio_id='+currentTorneio);
 const eq=equipes.find(e=>e.id===currentInscEquipeId);
-const adminEq=isAdmin?await api('/equipes/'+currentNaipe+'/admin'):null;
+const adminEq=isAdmin?await api('/equipes/admin?torneio_id='+currentTorneio):null;
 const eqData=adminEq?.find(e=>e.id===currentInscEquipeId)||eq;
 const fotoAtual=eqData?.foto;
 area.innerHTML=`<div class="card">
@@ -1721,7 +1834,7 @@ async function uploadFotoEquipe(){
 const fileInput=document.getElementById('fotoEquipeFile');
 if(!fileInput?.files.length){showToast('Selecione uma foto');return}
 const fd=new FormData();fd.append('file',fileInput.files[0]);
-const r=await fetch('/api/equipes/'+currentNaipe+'/'+currentInscEquipeId+'/foto',{method:'POST',body:fd,credentials:'same-origin'});
+const r=await fetch('/api/equipes/'+currentInscEquipeId+'/foto',{method:'POST',body:fd,credentials:'same-origin'});
 const res=await r.json();
 if(res.ok){showToast('Foto enviada!');renderFotoEquipe()}else{showToast(res.error||'Erro')}
 }
@@ -1809,7 +1922,7 @@ etF.forEach(e=>{e._naipe='feminino';all.push(e)});
 etM.forEach(e=>{e._naipe='masculino';all.push(e)});
 all.sort((a,b)=>(a.data||'').localeCompare(b.data||''));
 const el=document.getElementById('calendarioList');
-if(!all.length){el.innerHTML='<div class="empty-state"><div class="icon">📅</div><p>Nenhuma etapa cadastrada</p></div>';return}
+if(!all.length){el.innerHTML='<div class="empty-state"><div class="icon">📅</div><p>Nenhum torneio cadastrado</p></div>';return}
 const today=new Date().toISOString().split('T')[0];
 el.innerHTML=all.map(e=>{
 const d=formatDate(e.data);
@@ -2012,7 +2125,7 @@ fasesOrdem.forEach(fase=>{
     <div style="font-weight:600;line-height:1.2">${hora}${esc(eA)} × ${esc(eB)}${labelExtra}</div>
     <div style="font-size:.7rem;color:#92400e">${esc(status)}</div>
   </div>
-  ${podeAbrir?`<button class="btn btn-sm" data-jid="${esc(j.id)}" data-naipe="${esc(j.naipe)}" onclick="abrirJogoTeste(this.dataset.jid,this.dataset.naipe)" style="background:#b45309;color:#fff;padding:5px 10px;font-size:.72rem">▶ Abrir</button>`:`<span style="font-size:.7rem;color:#a16207">aguarda</span>`}
+  ${podeAbrir?`<button class="btn btn-sm" data-jid="${esc(j.id)}" onclick="abrirJogoTeste(this.dataset.jid)" style="background:#b45309;color:#fff;padding:5px 10px;font-size:.72rem">▶ Abrir</button>`:`<span style="font-size:.7rem;color:#a16207">aguarda</span>`}
 </div>`;
   }).join('');
 });
@@ -2040,7 +2153,7 @@ const endpoints={
   'grupos':'/test/setup-grupos',
   'hexagonal':'/test/setup-hexagonal',
   'quad_corrido':'/test/setup-quad-corrido',
-  'quad_decisao':'/test/setup-quad-final'
+  'quad_decisao':'/test/setup-quad-decisao'
 };
 const endpoint=endpoints[cenario]||'/test/setup';
 const r=await api(endpoint,'POST',{});
@@ -2083,12 +2196,16 @@ overlay.onclick=(e)=>{if(e.target===overlay||e.target.dataset.close)document.bod
 document.body.appendChild(overlay);
 }
 
-async function abrirJogoTeste(jid,naipe){
-if(!jid||!naipe)return;
-currentNaipe=naipe;
-allJogos[currentNaipe]=await loadJogosForCurrentNaipe();
-allEquipes[currentNaipe]=await api('/equipes/'+currentNaipe+'/admin');
-const j=allJogos[currentNaipe].find(x=>x.id===jid);
+// Abre um jogo de teste no painel Ao Vivo. Opera no torneio reservado '__test__' —
+// guarda o torneio real pra restaurar quando fechar o modal (ver closeModal).
+let _torneioAntesTeste=null;
+async function abrirJogoTeste(jid){
+if(!jid)return;
+if(_torneioAntesTeste===null)_torneioAntesTeste=currentTorneio;
+currentTorneio='__test__';
+allJogos[currentTorneio]=await loadJogosForCurrentTorneio();
+allEquipes[currentTorneio]=await api('/equipes/admin?torneio_id='+currentTorneio);
+const j=allJogos[currentTorneio].find(x=>x.id===jid);
 if(!j){showToast('Jogo de teste não encontrado. Recarregue a página.');return}
 openScoreEdit(jid);
 }
@@ -2115,7 +2232,16 @@ if(r.ok){
 }
 
 // === INIT ===
-async function initNaipe(){
+// Lê ?torneio=<id> tanto da query string quanto de dentro do hash (landing manda
+// /app#sec-inscricao?torneio=<id>).
+function torneioFromURL(){
+  const q=new URLSearchParams(window.location.search).get('torneio');
+  if(q)return q;
+  const h=window.location.hash;
+  if(h.includes('?'))return new URLSearchParams(h.split('?')[1]||'').get('torneio');
+  return null;
+}
+async function initApp(){
 // Restore server session if any (admin or team)
 try{
   const me=await fetch('/api/auth/me',{credentials:'same-origin'}).then(r=>r.json());
@@ -2125,7 +2251,7 @@ try{
     document.getElementById('fabAdmin').classList.add('admin-active');
     document.getElementById('adminBar').classList.add('active');
   }else if(me.team_id){
-    teamSession={equipe_id:me.team_id,naipe:me.team_naipe,nome:me.team_nome,pagamento_status:'pendente'};
+    teamSession={equipe_id:me.team_id,naipe:me.team_naipe,torneio_id:me.team_torneio_id,nome:me.team_nome,pagamento_status:'pendente'};
     currentInscEquipeId=me.team_id;currentInscEquipeNome=me.team_nome||'';
     document.getElementById('fabAdmin').textContent='👤';
     document.getElementById('fabAdmin').classList.add('team-active');
@@ -2133,23 +2259,22 @@ try{
     document.getElementById('teamBarName').textContent=me.team_nome||'';
   }
 }catch(e){console.log('auth/me failed:',e)}
-const etM=await api('/etapas/masculino');const etF=await api('/etapas/feminino');
+await loadTorneios();
+// Escolhe o torneio inicial: URL > torneio da equipe logada > próximo por data > primeiro
+const pre=torneioFromURL();
 const today=new Date().toISOString().split('T')[0];
-const nextM=etM.filter(e=>e.data>=today).sort((a,b)=>a.data.localeCompare(b.data))[0];
-const nextF=etF.filter(e=>e.data>=today).sort((a,b)=>a.data.localeCompare(b.data))[0];
-let best='masculino';
-if(nextF&&nextM){best=nextF.data<=nextM.data?'feminino':'masculino'}
-else if(nextF&&!nextM){best='feminino'}
-else if(!nextF&&nextM){best='masculino'}
-else if(etF.length&&!etM.length){best='feminino'}
-// If team is logged in, force their naipe
-if(teamSession?.naipe)best=teamSession.naipe;
-switchNaipe(best);
-// Handle URL hash to open specific section (e.g. /app#sec-regulamento)
-const hash=window.location.hash.replace('#','').replace('sec-','');
+const upcoming=allTorneios.filter(t=>(t.data||'')>=today).sort((a,b)=>(a.data||'').localeCompare(b.data||''));
+let best=null;
+if(pre&&allTorneios.find(t=>t.id===pre))best=pre;
+else if(teamSession?.torneio_id&&allTorneios.find(t=>t.id===teamSession.torneio_id))best=teamSession.torneio_id;
+else best=(upcoming[0]||allTorneios[0])?.id||null;
+switchTorneio(best);
+// Abre seção específica pelo hash (ex: /app#sec-inscricao ou #sec-inscricao?torneio=..)
+let hash=window.location.hash.replace('#','');
+hash=hash.split('?')[0].replace('sec-','');
 if(hash)setTimeout(()=>switchSection(hash),300);
 }
-initNaipe();
+initApp();
 </script>
 </body>
 </html>

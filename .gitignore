@@ -1,0 +1,11 @@
+# Artefatos de desenvolvimento local (NÃO vão pra produção)
+dev_server.py
+.claude/
+__pycache__/
+*.pyc
+*.pyo
+
+# Dados de runtime (ficam no volume do servidor, nunca no repo)
+tournament.json
+/data/
+*.log
