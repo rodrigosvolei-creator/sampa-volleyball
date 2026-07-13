@@ -1967,21 +1967,21 @@ async function deleteFotoGeral(id){if(!confirm('Remover foto?'))return;await api
 
 // === CALENDARIO (all etapas, all naipes) ===
 async function renderCalendario(){
-const [etF,etM]=await Promise.all([api('/etapas/feminino'),api('/etapas/masculino')]);
-const all=[];
-etF.forEach(e=>{e._naipe='feminino';all.push(e)});
-etM.forEach(e=>{e._naipe='masculino';all.push(e)});
-all.sort((a,b)=>(a.data||'').localeCompare(b.data||''));
+// Mostra TODOS os torneios cadastrados (independente do torneio selecionado no topo)
+if(!allTorneios.length)await loadTorneios();
+const all=[...allTorneios].sort((a,b)=>(a.data||'').localeCompare(b.data||''));
 const el=document.getElementById('calendarioList');
 if(!all.length){el.innerHTML='<div class="empty-state"><div class="icon">📅</div><p>Nenhum torneio cadastrado</p></div>';return}
+const FMT_LABEL={hexagonal:'Hexagonal',grupos:'Grupos',quad_corrido:'Quadrangular',quad_decisao:'Quadrangular c/ decisão',tri_corrido:'Triangular',tri_final:'Triangular c/ final'};
 const today=new Date().toISOString().split('T')[0];
 el.innerHTML=all.map(e=>{
 const d=formatDate(e.data);
-const isPast=e.data<today;
+const isPast=(e.data||'')<today;
 const isVF=(e.nome||'').toLowerCase().includes('volley fast');
-const adiada=e.data==='2026-05-09';
-const naipeLabel=e._naipe==='feminino'?'Feminino':'Masculino';
-const naipeColor=e._naipe==='feminino'?'var(--red)':'var(--black)';
+const adiada=!!e.adiado;
+const naipeLabel=e.naipe==='feminino'?'Feminino':'Masculino';
+const naipeColor=e.naipe==='feminino'?'var(--red)':'var(--black)';
+const fmtLabel=FMT_LABEL[e.formato_jogos]||e.formato_jogos||'';
 return`<div class="card${adiada?' card-adiada':''}" style="display:flex;gap:14px;align-items:flex-start;position:relative;overflow:hidden;${isPast&&!adiada?'opacity:.5':''}">
 <div class="etapa-date" style="${isPast&&!adiada?'background:var(--g400)':''}"><div class="day">${d.day}</div><div class="month">${d.month}</div></div>
 <div style="flex:1;${isVF?'padding-right:110px':''}">
@@ -1992,7 +1992,8 @@ ${e.horario?`<div style="font-size:.82rem;color:var(--g400);margin-top:2px">🕐
 <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
 <span class="badge" style="background:${naipeColor};color:white">${naipeLabel}</span>
 ${e.categoria?`<span class="badge badge-red">${esc(e.categoria)}</span>`:''}
-${e.formato?`<span class="badge badge-black">${esc(e.formato)}</span>`:''}
+${fmtLabel?`<span class="badge badge-black">${esc(fmtLabel)}</span>`:''}
+${adiada||isPast?'':(e.lotado?`<span class="badge" style="background:#f59e0b;color:#fff">🔴 Lotado${e.lista_espera_count?' · '+e.lista_espera_count+' espera':''}</span>`:`<span class="badge badge-gray">${e.inscritos||0}/${e.max_equipes||'-'} vagas</span>`)}
 ${adiada?'':(isPast?'<span class="badge badge-gray">Encerrada</span>':e.data===today?'<span class="badge badge-green">Hoje!</span>':'')}
 </div></div>
 ${isVF?'<img src="/static/volley-fast-2026.jpeg" alt="" style="position:absolute;right:20px;top:50%;transform:translateY(-50%);width:100px;height:100px;border-radius:50%;object-fit:cover;opacity:.9;box-shadow:0 4px 15px rgba(0,0,0,.1)">':''}
