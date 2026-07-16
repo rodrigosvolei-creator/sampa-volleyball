@@ -926,9 +926,31 @@ document.getElementById('copyCredsBtn').onclick=()=>copiarCredenciais(credLogin,
 document.getElementById('continueAfterInsc').onclick=()=>showStepAtletas();
 showToast('Equipe inscrita!');
 }
-function copiarCredenciais(login,senha){
-const txt=`🏐 SVL - Sampa Volleyball League\nSua equipe foi inscrita!\n\nLogin: ${login}\nSenha: ${senha}\n\nAcesse: sampavolleyleague.com.br`;
+function copiarCredenciais(login,senha,intro){
+const txt=`🏐 SVL - Sampa Volleyball League\n${intro||'Sua equipe foi inscrita!'}\n\nLogin: ${login}\nSenha: ${senha}\n\nAcesse: sampavolleyleague.com.br`;
 navigator.clipboard?.writeText(txt).then(()=>showToast('Copiado!')).catch(()=>showToast('Copie manualmente'));
+}
+// Modal fixo de credenciais (reset de senha / promoção da espera): fica aberto até fechar,
+// com botão copiar — a senha só é exibida aqui, uma única vez.
+function mostrarCredenciaisModal(titulo,nomeEquipe,login,senha,intro){
+const overlay=document.createElement('div');
+overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+overlay.innerHTML=`<div style="background:#fff;border-radius:14px;max-width:430px;width:100%;overflow:hidden">
+<div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid #e5e7eb">
+<div style="font-family:'Oswald';font-weight:700;letter-spacing:1px;text-transform:uppercase">${titulo}</div>
+<button style="background:none;border:none;font-size:1.5rem;cursor:pointer;color:#6b7280" data-close="1">✕</button>
+</div>
+<div style="padding:16px 18px 18px">
+<p style="font-size:.9rem;color:#3f3f46;margin-bottom:2px">Equipe: <strong>${esc(nomeEquipe)}</strong></p>
+<p style="font-size:.78rem;color:#71717a">Copie e envie pra equipe — a senha não será exibida de novo.</p>
+<div class="cred-box"><div style="font-family:'Oswald';font-size:.68rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:#a1a1aa;margin-bottom:4px">Login</div><div style="font-family:'Oswald';font-size:1.35rem;font-weight:700;user-select:all">${esc(login)}</div></div>
+<div class="cred-box"><div style="font-family:'Oswald';font-size:.68rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:#a1a1aa;margin-bottom:4px">Nova Senha</div><div style="font-family:'Oswald';font-size:1.35rem;font-weight:700;color:var(--red);user-select:all">${esc(senha)}</div></div>
+<button class="btn btn-red btn-full" data-copy="1">📋 Copiar Credenciais</button>
+<button class="btn btn-outline btn-full" style="margin-top:8px" data-close="1">Fechar</button>
+</div></div>`;
+overlay.querySelector('[data-copy]').onclick=()=>copiarCredenciais(login,senha,intro);
+overlay.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>document.body.removeChild(overlay));
+document.body.appendChild(overlay);
 }
 async function addAtleta(){
 const nome=document.getElementById('atlNome').value.trim(),nasc=document.getElementById('atlNasc').value;
@@ -1094,7 +1116,7 @@ if(r&&r.ok){
   const cred=r.equipe;
   await refreshAll();renderEquipes();
   showToast(cred.nome+' promovida!');
-  alert('✅ '+cred.nome+' promovida da lista de espera!\n\nLogin: '+cred.login+'\nSenha: '+cred.senha+'\n\nRepasse essas credenciais pra equipe (ela usa pra acompanhar e enviar o comprovante).');
+  mostrarCredenciaisModal('⬆ Promovida da Espera',cred.nome,cred.login,cred.senha,'Abriu vaga — sua equipe foi promovida da lista de espera!');
 }else{showToast(r?.error||'Erro ao promover')}
 }
 // Lista pra WhatsApp — abre modal com responsáveis e telefones formatados pra copiar
@@ -1227,7 +1249,13 @@ const res=await r.json();
 if(res.ok){showToast('Logo enviado!');allEquipes[currentTorneio]=await api('/equipes?torneio_id='+currentTorneio);adminVerEquipe(eid,document.querySelector('#atletasModalBody strong')?.textContent||'')}else{showToast(res.error||'Erro')}
 }
 async function setPagamento(eid,status){await api(`/equipes/${eid}/pagamento`,'POST',{pagamento_status:status});showToast(status==='aprovado'?'Pagamento aprovado!':'Pagamento pendente');closeModal('atletasModal');renderEquipes()}
-async function resetSenha(eid){const r=await api(`/equipes/${eid}/reset-senha`,'POST');if(r.ok){showToast('Nova senha: '+r.nova_senha);closeModal('atletasModal');renderEquipes()}}
+async function resetSenha(eid){
+const nome=(allEquipes[currentTorneio]||[]).find(e=>e.id===eid)?.nome||'esta equipe';
+if(!confirm(`Gerar NOVA senha para ${nome}?\n\nA senha atual deixa de funcionar na hora.`))return;
+const r=await api(`/equipes/${eid}/reset-senha`,'POST');
+if(r.ok){closeModal('atletasModal');renderEquipes();
+mostrarCredenciaisModal('🔑 Senha Redefinida',nome,r.login,r.nova_senha,'Sua senha de acesso foi redefinida.');}
+else{showToast(r.error||'Erro ao resetar senha')}}
 async function deleteEquipe(id){if(!confirm('Remover equipe?'))return;await api('/equipes/'+id,'DELETE');showToast('Removida');allEquipes[currentTorneio]=await api('/equipes?torneio_id='+currentTorneio);allGrupos[currentTorneio]=await api('/grupos/'+currentTorneio);renderEquipes();renderGrupos()}
 
 // === GRUPOS ===
