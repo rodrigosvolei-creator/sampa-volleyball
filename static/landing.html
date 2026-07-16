@@ -365,7 +365,7 @@ const container=document.getElementById('landingEtapaCard');
 if(!sorted.length){container.innerHTML='<div class="etapa-card-label">Em breve</div>';return}
 // Mostra os 2 próximos torneios
 const proximos=sorted.slice(0,2);
-const FMT_LABEL={hexagonal:'Hexagonal',grupos:'Grupos',quad_corrido:'Quadrangular',quad_decisao:'Quadrangular',tri_corrido:'Triangular',tri_final:'Triangular'};
+const FMT_LABEL={hexagonal:'Hexagonal',grupos:'Grupos',quad_corrido:'Quadrangular',quad_decisao:'Quadrangular',tri_corrido:'Triangular',tri_final:'Triangular',penta_corrido:'Pentagonal',penta_decisao:'Pentagonal'};
 // Monta o HTML interno de um torneio (cada um com seu próprio botão de inscrição)
 function cardInterno(next){
   const dt=new Date(next.data+'T12:00:00');

@@ -190,6 +190,8 @@ tr:last-child td{border-bottom:none}
 <option value="hexagonal">Hexagonal (6 · todos x todos + semis)</option>
 <option value="quad_corrido">Quadrangular corrido (4)</option>
 <option value="quad_decisao">Quadrangular c/ decisão (4 · +3º e final)</option>
+<option value="penta_corrido">Pentagonal corrido (5)</option>
+<option value="penta_decisao">Pentagonal c/ decisão (5 · +3º e final)</option>
 <option value="tri_corrido">Triangular corrido (3)</option>
 <option value="tri_final">Triangular c/ final (3)</option>
 </select></div>
@@ -669,7 +671,7 @@ function formatDate(d){if(!d)return{day:'--',month:'--'};const dt=new Date(d+'T1
 function renderSobreTorneio(){
 const el=document.getElementById('sobreTorneioBody');if(!el)return;
 const t=curTorneio();
-const FMT={hexagonal:'hexagonal (todos contra todos + cruzamento olímpico)',grupos:'grupos com cruzamento olímpico',quad_corrido:'quadrangular (todos contra todos, pontos corridos)',quad_decisao:'quadrangular com disputa de 3º lugar e grande final',tri_corrido:'triangular (todos contra todos)',tri_final:'triangular com final'};
+const FMT={hexagonal:'hexagonal (todos contra todos + cruzamento olímpico)',grupos:'grupos com cruzamento olímpico',quad_corrido:'quadrangular (todos contra todos, pontos corridos)',quad_decisao:'quadrangular com disputa de 3º lugar e grande final',tri_corrido:'triangular (todos contra todos)',tri_final:'triangular com final',penta_corrido:'pentagonal (5 equipes, pontos corridos)',penta_decisao:'pentagonal (5 equipes) com disputa de 3º lugar e grande final'};
 let dataFmt='';
 if(t&&t.data){try{dataFmt=new Date(t.data+'T12:00:00').toLocaleDateString('pt-BR')}catch(e){}}
 let html='<p>A <strong>Sampa Volleyball League</strong> realiza torneios rápidos de vôlei Master — resolvidos em um único dia, com <strong>classificação ao vivo</strong> e cruzamento olímpico, no <strong>São Paulo Futebol Clube</strong>, em diferentes categorias.</p>';
@@ -1239,7 +1241,11 @@ actEl.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:cen
 <option value="hexagonal" ${fmt==='hexagonal'?'selected':''}>Hexagonal (6 times)</option>
 <option value="grupos" ${fmt==='grupos'?'selected':''}>2 Grupos (6+ times)</option>
 <option value="quad_corrido" ${fmt==='quad_corrido'?'selected':''}>Quadrangular — pontos corridos</option>
-<option value="quad_decisao" ${fmt==='quad_decisao'?'selected':''}>Quadrangular — com final + 3º</option></select>
+<option value="quad_decisao" ${fmt==='quad_decisao'?'selected':''}>Quadrangular — com final + 3º</option>
+<option value="penta_corrido" ${fmt==='penta_corrido'?'selected':''}>Pentagonal (5) — pontos corridos</option>
+<option value="penta_decisao" ${fmt==='penta_decisao'?'selected':''}>Pentagonal (5) — com final + 3º</option>
+<option value="tri_corrido" ${fmt==='tri_corrido'?'selected':''}>Triangular (3) — pontos corridos</option>
+<option value="tri_final" ${fmt==='tri_final'?'selected':''}>Triangular (3) — com final</option></select>
 <div style="display:flex;align-items:center;gap:6px"><label class="form-label" style="margin:0;white-space:nowrap">Máx:</label>
 <input class="form-input" id="maxEqInput" type="number" min="3" max="12" value="${curTorneio()?.max_equipes||8}" style="width:60px;padding:8px;text-align:center" onchange="salvarMaxEquipes()"></div>
 <div style="display:flex;align-items:center;gap:6px"><label class="form-label" style="margin:0;white-space:nowrap">⏰ Início:</label>
@@ -1249,13 +1255,13 @@ actEl.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:cen
 </div>`}
 else{actEl.style.display='none'}
 // Quantos classificam (cor vermelha): hex=4, quad_corrido=1 (campeão), quad_decisao=2 (final), grupos=2 por grupo
-const topN=fmt==='hexagonal'?4:fmt==='quad_corrido'?1:fmt==='quad_decisao'?2:2;
+const topN=fmt==='hexagonal'?4:['quad_corrido','tri_corrido','penta_corrido'].includes(fmt)?1:2;
 const renderG=(n,ids,label)=>`<div class="grupo-card"><div class="grupo-header">${label}</div><div style="padding:6px 0">
 ${ids.length?ids.map((id,i)=>`<div class="grupo-item"><span style="font-family:'Oswald';font-weight:700;font-size:.8rem;width:22px;color:${i<topN?'var(--red)':'var(--g300)'}">${i+1}.</span>${teamDisplay(id)}</div>`).join('')
 :'<div class="grupo-item" style="color:var(--g300);justify-content:center">Vazio</div>'}</div></div>`;
 // Hexagonal e quad usam grupo único A
-const fmtGrupoUnico=fmt==='hexagonal'||fmt==='quad_corrido'||fmt==='quad_decisao';
-const labelA=fmt==='hexagonal'?'Classificação Geral':fmt==='quad_corrido'?'Quadrangular (pontos corridos)':fmt==='quad_decisao'?'Quadrangular':'Grupo A';
+const fmtGrupoUnico=['hexagonal','quad_corrido','quad_decisao','tri_corrido','tri_final','penta_corrido','penta_decisao'].includes(fmt);
+const labelA={hexagonal:'Classificação Geral',quad_corrido:'Quadrangular (pontos corridos)',quad_decisao:'Quadrangular',penta_corrido:'Pentagonal (pontos corridos)',penta_decisao:'Pentagonal',tri_corrido:'Triangular (pontos corridos)',tri_final:'Triangular'}[fmt]||'Grupo A';
 if(fmtGrupoUnico){document.getElementById('gruposDisplay').innerHTML=renderG('A',g.A||[],labelA);document.getElementById('gruposDisplay').style.gridTemplateColumns='1fr'}
 else{document.getElementById('gruposDisplay').innerHTML=renderG('A',g.A||[],'Grupo A')+renderG('B',g.B||[],'Grupo B');document.getElementById('gruposDisplay').style.gridTemplateColumns='1fr 1fr'}
 }
@@ -1289,14 +1295,14 @@ const jogosAll=allJogos[currentTorneio]||[];
 // Filtra jogos de teste — só visíveis dentro do modal pelo card Modo Teste
 const jogos=jogosAll.filter(j=>!j.is_test);
 const fmt=curTorneio()?.formato_jogos||'grupos';
-const fmtGrupoUnico=fmt==='hexagonal'||fmt==='quad_corrido'||fmt==='quad_decisao';
+const fmtGrupoUnico=['hexagonal','quad_corrido','quad_decisao','tri_corrido','tri_final','penta_corrido','penta_decisao'].includes(fmt);
 document.getElementById('jogosActions').style.display=isAdmin?'block':'none';
 const hex=jogos.filter(j=>j.fase==='hexagonal'),gj=jogos.filter(j=>j.fase==='grupos');
 const semi=jogos.filter(j=>j.fase==='semi'),fin=jogos.find(j=>j.fase==='final'),ter=jogos.find(j=>j.fase==='terceiro');
 const ge=document.getElementById('jogosFaseGrupos'),ee=document.getElementById('jogosFaseElim');
 if(!hex.length&&!gj.length&&!semi.length&&!fin){ge.innerHTML='<div class="empty-state"><div class="icon">📋</div><p>Jogos não gerados</p></div>';ee.innerHTML='';return}
 // Label da fase regular conforme o formato
-const labelFase=fmt==='hexagonal'?'Hexagonal':fmt==='quad_corrido'?'Quadrangular (pontos corridos)':fmt==='quad_decisao'?'Quadrangular':'Fase de Grupos';
+const labelFase={hexagonal:'Hexagonal',quad_corrido:'Quadrangular (pontos corridos)',quad_decisao:'Quadrangular',penta_corrido:'Pentagonal (pontos corridos)',penta_decisao:'Pentagonal',tri_corrido:'Triangular (pontos corridos)',tri_final:'Triangular'}[fmt]||'Fase de Grupos';
 if(fmtGrupoUnico&&hex.length){ge.innerHTML=`<div style="text-align:center;font-family:'Oswald';font-weight:600;font-size:.95rem;text-transform:uppercase;color:var(--g500);margin-bottom:10px">${labelFase}</div>`+hex.map(j=>{j._label=labelFase;return renderMatch(j)}).join('')}
 else if(!fmtGrupoUnico){const gA=gj.filter(j=>j.grupo==='A'),gB=gj.filter(j=>j.grupo==='B');
 ge.innerHTML=`<div style="text-align:center;font-family:'Oswald';font-weight:600;font-size:.95rem;text-transform:uppercase;color:var(--g500);margin-bottom:10px">Fase de Grupos</div>
@@ -1304,7 +1310,7 @@ ${gA.length?`<div style="font-size:.7rem;font-weight:600;letter-spacing:1.5px;te
 ${gB.length?`<div style="font-size:.7rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--g400);margin:14px 0 6px">Grupo B</div>`:''}${gB.map(renderMatch).join('')}`}
 // Eliminatória — só aparece se houver semi ou final
 if(semi.length||fin||ter){
-  const titEli=fmt==='quad_decisao'?'⭐ Decisão':'Cruzamento Olímpico';
+  const titEli=['quad_decisao','penta_decisao','tri_final'].includes(fmt)?'⭐ Decisão':'Cruzamento Olímpico';
   let eh=`<div style="text-align:center;font-family:'Oswald';font-weight:600;font-size:.95rem;text-transform:uppercase;color:var(--g500);margin:20px 0 10px">${titEli}</div>`;
   if(semi.length)eh+=`<div style="font-size:.7rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--g400);margin-bottom:6px">Semifinais</div>`+semi.map(renderMatch).join('');
   if(ter)eh+=`<div style="font-size:.7rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--g400);margin:14px 0 6px">3º Lugar</div>`+renderMatch(ter);
@@ -1656,9 +1662,9 @@ async function gerarJogos(){if(!confirm('Gerar jogos?'))return;allJogos[currentT
 // === CLASSIFICACAO ===
 async function renderClassificacao(){
 const fmt=curTorneio()?.formato_jogos||'grupos';
-const fmtGrupoUnico=fmt==='hexagonal'||fmt==='quad_corrido'||fmt==='quad_decisao';
+const fmtGrupoUnico=['hexagonal','quad_corrido','quad_decisao','tri_corrido','tri_final','penta_corrido','penta_decisao'].includes(fmt);
 // Quantos classificam: hex=4, quad_corrido=1 (só campeão), quad_decisao=2 (vão à final), grupos=2/grupo
-const topN=fmt==='hexagonal'?4:fmt==='quad_corrido'?1:fmt==='quad_decisao'?2:2;
+const topN=fmt==='hexagonal'?4:['quad_corrido','tri_corrido','penta_corrido'].includes(fmt)?1:2;
 const renderT=async(g,label)=>{const d=await api('/classificacao/'+currentTorneio+'/'+g);
 if(!d.length)return`<div class="empty-state"><p>Sem dados — ${label}</p></div>`;
 return`<div class="card"><div class="card-title" style="margin-bottom:10px">${label}</div><div class="table-wrap"><table>
@@ -1667,7 +1673,7 @@ ${d.map((e,i)=>`<tr><td class="${i<topN?'pos-'+(i<2?'1':'2'):''}" style="font-fa
 <td style="font-weight:600">${teamDisplay(e.id)}</td><td>${e.jogos}</td><td>${e.vitorias}</td><td>${e.derrotas}</td>
 <td>${e.sets_pro}</td><td>${e.sets_contra}</td><td>${e.sets_pro-e.sets_contra}</td>
 <td style="font-family:'Oswald';font-weight:700;color:var(--red)">${e.pontos}</td></tr>`).join('')}</table></div></div>`;};
-const labelA=fmt==='hexagonal'?'Classificação Geral':fmt==='quad_corrido'?'Classificação (campeão = 1º colocado)':fmt==='quad_decisao'?'Classificação (1ºx2º vão à final · 3ºx4º disputam o 3º)':'Grupo A';
+const labelA={hexagonal:'Classificação Geral',quad_corrido:'Classificação (campeão = 1º colocado)',tri_corrido:'Classificação (campeão = 1º colocado)',penta_corrido:'Classificação (campeão = 1º colocado)',quad_decisao:'Classificação (1ºx2º vão à final · 3ºx4º disputam o 3º)',penta_decisao:'Classificação (1ºx2º vão à final · 3ºx4º disputam o 3º)',tri_final:'Classificação (1ºx2º vão à final)'}[fmt]||'Grupo A';
 if(fmtGrupoUnico){document.getElementById('classGrupoA').innerHTML=await renderT('A',labelA);document.getElementById('classGrupoB').innerHTML=''}
 else{document.getElementById('classGrupoA').innerHTML=await renderT('A','Grupo A');document.getElementById('classGrupoB').innerHTML=await renderT('B','Grupo B')}
 }
@@ -1972,7 +1978,7 @@ if(!allTorneios.length)await loadTorneios();
 const all=[...allTorneios].sort((a,b)=>(a.data||'').localeCompare(b.data||''));
 const el=document.getElementById('calendarioList');
 if(!all.length){el.innerHTML='<div class="empty-state"><div class="icon">📅</div><p>Nenhum torneio cadastrado</p></div>';return}
-const FMT_LABEL={hexagonal:'Hexagonal',grupos:'Grupos',quad_corrido:'Quadrangular',quad_decisao:'Quadrangular c/ decisão',tri_corrido:'Triangular',tri_final:'Triangular c/ final'};
+const FMT_LABEL={hexagonal:'Hexagonal',grupos:'Grupos',quad_corrido:'Quadrangular',quad_decisao:'Quadrangular c/ decisão',tri_corrido:'Triangular',tri_final:'Triangular c/ final',penta_corrido:'Pentagonal',penta_decisao:'Pentagonal c/ decisão'};
 const today=new Date().toISOString().split('T')[0];
 el.innerHTML=all.map(e=>{
 const d=formatDate(e.data);
@@ -2132,6 +2138,16 @@ if(!st||!st.active){
     <button class="btn btn-black btn-full" style="background:#b45309;color:#fff" onclick="setupModoTeste('quad_decisao')">▶ Criar 4 equipes com decisão</button>
   </div>
   <div style="background:#fff;border:1px solid #fde68a;border-radius:8px;padding:12px">
+    <div style="font-family:'Oswald';font-weight:600;font-size:.78rem;letter-spacing:1px;text-transform:uppercase;color:#b45309;margin-bottom:4px">Cenário — Pentagonal com decisão</div>
+    <div style="font-size:.78rem;color:#78350f;margin-bottom:10px">5 equipes, todos contra todos = 10 jogos + 3º (3ºx4º) + final (1ºx2º) = <strong>12 jogos</strong>.</div>
+    <button class="btn btn-black btn-full" style="background:#b45309;color:#fff" onclick="setupModoTeste('penta_decisao')">▶ Criar 5 equipes com decisão</button>
+  </div>
+  <div style="background:#fff;border:1px solid #fde68a;border-radius:8px;padding:12px">
+    <div style="font-family:'Oswald';font-weight:600;font-size:.78rem;letter-spacing:1px;text-transform:uppercase;color:#b45309;margin-bottom:4px">Cenário — Triangular com final</div>
+    <div style="font-size:.78rem;color:#78350f;margin-bottom:10px">3 equipes, todos contra todos = 3 jogos + final (1ºx2º) = <strong>4 jogos</strong>. Sem disputa de 3º.</div>
+    <button class="btn btn-black btn-full" style="background:#b45309;color:#fff" onclick="setupModoTeste('tri_final')">▶ Criar 3 equipes com final</button>
+  </div>
+  <div style="background:#fff;border:1px solid #fde68a;border-radius:8px;padding:12px">
     <div style="font-family:'Oswald';font-weight:600;font-size:.78rem;letter-spacing:1px;text-transform:uppercase;color:#b45309;margin-bottom:4px">Cenário 4 — 2 grupos de 3 equipes</div>
     <div style="font-size:.78rem;color:#78350f;margin-bottom:10px">6 equipes sorteadas em A/B (3+3) + 6 jogos de fase + semis + final + 3º.</div>
     <button class="btn btn-black btn-full" style="background:#b45309;color:#fff" onclick="setupModoTeste('grupos')">▶ Criar 6 equipes em 2 grupos</button>
@@ -2151,6 +2167,8 @@ const cenarioNome={
   'sandbox':'Sandbox (2 equipes + 1 jogo)',
   'quad_corrido':'Quadrangular pontos corridos (4 times)',
   'quad_decisao':'Quadrangular com decisão (4 times, 8 jogos)',
+  'penta_decisao':'Pentagonal com decisão (5 times, 12 jogos)',
+  'tri_final':'Triangular com final (3 times, 4 jogos)',
   'grupos':'2 Grupos de 3 equipes',
   'hexagonal':'Hexagonal (todos contra todos)'
 }[cenario]||cenario;
@@ -2196,6 +2214,8 @@ const nomes={
   'sandbox':'2 equipes + 1 jogo',
   'quad_corrido':'4 equipes pontos corridos',
   'quad_decisao':'4 equipes com final + 3º',
+  'penta_decisao':'5 equipes com final + 3º',
+  'tri_final':'3 equipes com final',
   'grupos':'6 equipes em 2 grupos',
   'hexagonal':'6 equipes em hexagonal'
 };
@@ -2205,7 +2225,9 @@ const endpoints={
   'grupos':'/test/setup-grupos',
   'hexagonal':'/test/setup-hexagonal',
   'quad_corrido':'/test/setup-quad-corrido',
-  'quad_decisao':'/test/setup-quad-decisao'
+  'quad_decisao':'/test/setup-quad-decisao',
+  'penta_decisao':'/test/setup-penta-decisao',
+  'tri_final':'/test/setup-tri-final'
 };
 const endpoint=endpoints[cenario]||'/test/setup';
 const r=await api(endpoint,'POST',{});

@@ -409,7 +409,8 @@ def torneios_do_naipe(data, naipe):
     ts = [t for t in data.get("torneios", []) if t.get("naipe") == naipe]
     return sorted(ts, key=lambda t: (t.get("data") or "", t.get("created_at") or ""))
 
-FORMATOS_VALIDOS = ("hexagonal", "grupos", "quad_corrido", "quad_decisao", "tri_corrido", "tri_final")
+FORMATOS_VALIDOS = ("hexagonal", "grupos", "quad_corrido", "quad_decisao",
+                    "tri_corrido", "tri_final", "penta_corrido", "penta_decisao")
 
 def _clamp_int(v, default, lo, hi):
     try:
@@ -534,8 +535,8 @@ def auto_classify_semis(data, torneio_id, test_mode=False):
                 elif j["fase"] == "semi" and "2º x 3º" in j.get("label", "") and not j["equipe_a"]:
                     j["equipe_a"] = ranking[1]["id"]
                     j["equipe_b"] = ranking[2]["id"]
-    elif fmt == "quad_decisao":
-        # Quadrangular com decisão: preenche disputa de 3º (3ºx4º) + final (1ºx2º)
+    elif fmt in ("quad_decisao", "penta_decisao"):
+        # Corrido com decisão (4 ou 5 equipes): preenche disputa de 3º (3ºx4º) + final (1ºx2º)
         hex_jogos = [j for j in jogos if j["fase"] == "hexagonal"]
         if not hex_jogos or not all(j["finalizado"] for j in hex_jogos):
             _merge_jogos_back(data, torneio_id, jogos, test_mode)
@@ -552,7 +553,22 @@ def auto_classify_semis(data, torneio_id, test_mode=False):
                     j["equipe_b"] = ranking[3]["id"]
         _merge_jogos_back(data, torneio_id, jogos, test_mode)
         return
-    elif fmt == "quad_corrido":
+    elif fmt == "tri_final":
+        # Triangular com final: regulares completos -> final = 1º x 2º (sem disputa de 3º)
+        hex_jogos = [j for j in jogos if j["fase"] == "hexagonal"]
+        if not hex_jogos or not all(j["finalizado"] for j in hex_jogos):
+            _merge_jogos_back(data, torneio_id, jogos, test_mode)
+            return
+        eids = grupos_src.get("A", [])
+        ranking = compute_ranking(eids, hex_jogos, "hexagonal")
+        if len(ranking) >= 2:
+            for j in jogos:
+                if j["fase"] == "final" and not j.get("equipe_a"):
+                    j["equipe_a"] = ranking[0]["id"]
+                    j["equipe_b"] = ranking[1]["id"]
+        _merge_jogos_back(data, torneio_id, jogos, test_mode)
+        return
+    elif fmt in ("quad_corrido", "tri_corrido", "penta_corrido"):
         # Sem fase eliminatória — nada a auto-classificar
         _merge_jogos_back(data, torneio_id, jogos, test_mode)
         return
@@ -1510,8 +1526,9 @@ def sortear_grupos(torneio_id):
         ids = [e["id"] for e in data.get("equipes", [])
                if e.get("torneio_id") == torneio_id and not e.get("is_test") and not e.get("lista_espera")]
         random.shuffle(ids)
-        # Formatos de grupo único (todos em A): hexagonal, quadrangular e triangular.
-        if fmt in ("hexagonal", "quad_corrido", "quad_decisao", "tri_corrido", "tri_final"):
+        # Formatos de grupo único (todos em A): hexagonal, triangular, quadrangular e pentagonal.
+        if fmt in ("hexagonal", "quad_corrido", "quad_decisao", "tri_corrido", "tri_final",
+                   "penta_corrido", "penta_decisao"):
             data["grupos"][torneio_id] = {"A": ids, "B": []}
         else:
             half = len(ids) // 2
@@ -1637,17 +1654,21 @@ def _aplicar_horarios(jogos, hora_inicio="08:30", intervalo_min=75):
 def _build_jogos_from_grupos(grupos, fmt, is_test=False, hora_inicio="08:30", intervalo_min=75):
     """Gera lista de jogos a partir da estrutura de grupos.
     grupos = {"A": [eid1, eid2, ...], "B": [...]}
-    fmt: 
+    fmt:
       - "hexagonal": todos contra todos em A + semis (1ºx4º, 2ºx3º) + 3º + final
       - "grupos": A e B (3+ cada) + semis cruzadas + 3º + final
-      - "quad_corrido": todos contra todos em A, sem eliminatória (campeão = 1º colocado)
-      - "quad_decisao": todos contra todos em A + disputa de 3º (3ºx4º) + final (1ºx2º) — todos jogam 4 partidas
+      - "tri_corrido" / "quad_corrido" / "penta_corrido": todos contra todos em A (3/4/5
+        equipes), sem eliminatória — campeão é o 1º colocado
+      - "quad_decisao" / "penta_decisao": todos contra todos em A + disputa de 3º (3ºx4º)
+        + final (1ºx2º)
+      - "tri_final": todos contra todos em A (3 jogos) + final (1ºx2º), sem disputa de 3º
     Aplica algoritmo anti-sequência na fase regular + horários sequenciais.
     Retorna lista de jogos prontos pra inserir, na ordem cronológica.
     """
     base = {"is_test": is_test} if is_test else {}
-    # Formatos "todos contra todos em A": hexagonal, quad_corrido, quad_decisao
-    fmt_grupo_unico = fmt in ("hexagonal", "quad_corrido", "quad_decisao")
+    # Formatos "todos contra todos em A" (grupo único)
+    fmt_grupo_unico = fmt in ("hexagonal", "quad_corrido", "quad_decisao",
+                              "tri_corrido", "tri_final", "penta_corrido", "penta_decisao")
     # 1) Gera os jogos da fase regular (combinações)
     fase_regular = []
     if fmt_grupo_unico:
@@ -1695,8 +1716,8 @@ def _build_jogos_from_grupos(grupos, fmt, is_test=False, hora_inicio="08:30", in
         eliminatoria.append({"id": str(uuid.uuid4())[:8], "fase": "final", "label": "Final",
             "equipe_a": None, "equipe_b": None, "sets_a": 0, "sets_b": 0,
             "parciais": [], "finalizado": False, **base})
-    elif fmt == "quad_decisao":
-        # Quadrangular com decisão: disputa de 3º (3ºx4º) + final (1ºx2º)
+    elif fmt in ("quad_decisao", "penta_decisao"):
+        # Corrido com decisão: disputa de 3º (3ºx4º) + final (1ºx2º)
         # Disputa de 3º vem ANTES da final na ordem cronológica (igual hexagonal/grupos)
         eliminatoria.append({"id": str(uuid.uuid4())[:8], "fase": "terceiro", "label": "Disputa 3º Lugar",
             "equipe_a": None, "equipe_b": None, "sets_a": 0, "sets_b": 0,
@@ -1704,7 +1725,12 @@ def _build_jogos_from_grupos(grupos, fmt, is_test=False, hora_inicio="08:30", in
         eliminatoria.append({"id": str(uuid.uuid4())[:8], "fase": "final", "label": "Final: 1º x 2º",
             "equipe_a": None, "equipe_b": None, "sets_a": 0, "sets_b": 0,
             "parciais": [], "finalizado": False, **base})
-    # fmt == "quad_corrido": sem eliminatória — campeão é o 1º colocado da fase regular
+    elif fmt == "tri_final":
+        # Triangular com final: só a final 1ºx2º (com 3 equipes não há disputa de 3º)
+        eliminatoria.append({"id": str(uuid.uuid4())[:8], "fase": "final", "label": "Final: 1º x 2º",
+            "equipe_a": None, "equipe_b": None, "sets_a": 0, "sets_b": 0,
+            "parciais": [], "finalizado": False, **base})
+    # corridos (tri/quad/penta): sem eliminatória — campeão é o 1º colocado da fase regular
     # 4) Concatena: fase regular (reordenada) → eliminatória
     todos = fase_regular + eliminatoria
     # 5) Aplica horários sequenciais
@@ -2056,8 +2082,9 @@ def get_classificacao(torneio_id, grupo):
     eids = [eid for eid in eids if eid not in test_team_ids]
     jogos = data["jogos"].get(torneio_id, [])
     emap = {e["id"]: e["nome"] for e in equipes_torneio if not e.get("is_test")}
-    # Quadrangular usa estrutura idêntica ao hexagonal (todos contra todos em A)
-    fmt_grupo_unico = fmt in ("hexagonal", "quad_corrido", "quad_decisao", "tri_corrido", "tri_final")
+    # Tri/quad/penta usam estrutura idêntica ao hexagonal (todos contra todos em A)
+    fmt_grupo_unico = fmt in ("hexagonal", "quad_corrido", "quad_decisao", "tri_corrido", "tri_final",
+                              "penta_corrido", "penta_decisao")
     fase_filter = "hexagonal" if fmt_grupo_unico else "grupos"
     relevant_jogos = [j for j in jogos
                       if j.get("fase") == fase_filter
@@ -2549,6 +2576,41 @@ def test_setup_quad_decisao():
     res = update_data(_do)
     return jsonify({"ok": True, "cenario": "quad_decisao", **res})
 
+def _test_setup_grupo_unico(cenario, fmt, n_equipes):
+    """Helper: monta cenário de teste de grupo único (todos em A) com N equipes no formato dado."""
+    tid = TEST_TORNEIO_ID
+    def _do(data):
+        _wipe_test_environment(data)
+        equipes = [_create_test_team(str(i+1), str(i+1)) for i in range(n_equipes)]
+        for eq in equipes:
+            data["equipes"].append(eq)
+        eids = [eq["id"] for eq in equipes]
+        grupos = {"A": eids, "B": []}
+        data.setdefault("grupos_test", {})[tid] = grupos
+        data["test_config"] = {"formato_jogos": fmt}
+        jogos = _build_jogos_from_grupos(grupos, fmt, is_test=True)
+        for j in jogos:
+            j["set_lados"] = []
+            j["em_andamento"] = False
+            j["set_atual"] = None
+        data["jogos"].setdefault(tid, []).extend(jogos)
+        data["test_meta"] = {"cenario": cenario, "torneio_id": tid}
+        return {"torneio_id": tid, "equipes_count": len(equipes), "jogos_count": len(jogos), "grupos": grupos}
+    res = update_data(_do)
+    return jsonify({"ok": True, "cenario": cenario, **res})
+
+@app.route('/api/test/setup-penta-decisao', methods=['POST'])
+@admin_required
+def test_setup_penta_decisao():
+    """Cenário pentagonal com decisão: 5 equipes, 10 jogos + 3º + final = 12 jogos."""
+    return _test_setup_grupo_unico("penta_decisao", "penta_decisao", 5)
+
+@app.route('/api/test/setup-tri-final', methods=['POST'])
+@admin_required
+def test_setup_tri_final():
+    """Cenário triangular com final: 3 equipes, 3 jogos + final 1ºx2º = 4 jogos."""
+    return _test_setup_grupo_unico("tri_final", "tri_final", 3)
+
 @app.route('/api/test/teardown', methods=['POST'])
 @admin_required
 def test_teardown():
@@ -2573,7 +2635,8 @@ def test_classificacao(grupo):
     eids = data.get("grupos_test", {}).get(tid, {}).get(grupo, [])
     jogos_test = [j for j in data["jogos"].get(tid, []) if j.get("is_test")]
     emap = {e["id"]: e["nome"] for e in data.get("equipes", []) if e.get("is_test")}
-    fmt_grupo_unico = fmt in ("hexagonal", "quad_corrido", "quad_decisao")
+    fmt_grupo_unico = fmt in ("hexagonal", "quad_corrido", "quad_decisao", "tri_corrido", "tri_final",
+                              "penta_corrido", "penta_decisao")
     fase_filter = "hexagonal" if fmt_grupo_unico else "grupos"
     relevant = [j for j in jogos_test
                 if j.get("fase") == fase_filter
