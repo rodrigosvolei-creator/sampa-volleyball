@@ -1139,6 +1139,36 @@ def promover_lista_espera(equipe_id):
     out["senha"] = plain
     return jsonify({"ok": True, "equipe": out})
 
+@app.route('/api/equipes/<equipe_id>', methods=['PUT'])
+@admin_required
+def update_equipe(equipe_id):
+    """Edita dados cadastrais da equipe (nome/responsável/telefone). Não mexe em
+    login/senha/pagamento — o login continua o original mesmo se o nome mudar."""
+    body = request.json or {}
+    def _do(data):
+        eq = find_equipe(data, equipe_id)
+        if not eq:
+            return None
+        if "nome" in body:
+            nome = (body.get("nome") or "").strip()
+            if not nome:
+                return ("invalido", "Nome não pode ficar vazio")
+            if len(nome) > 80:
+                return ("invalido", "Nome muito longo")
+            eq["nome"] = nome
+        if "responsavel" in body:
+            eq["responsavel"] = (body.get("responsavel") or "").strip()[:80]
+        if "telefone" in body:
+            eq["telefone"] = (body.get("telefone") or "").strip()[:30]
+        return ("ok", {k: v for k, v in eq.items() if k != "senha_hash"})
+    res = update_data(_do)
+    if res is None:
+        return jsonify({"error": "Equipe não encontrada"}), 404
+    if res[0] == "invalido":
+        return jsonify({"error": res[1]}), 400
+    do_backup()
+    return jsonify({"ok": True, "equipe": res[1]})
+
 @app.route('/api/equipes/<equipe_id>/mover', methods=['POST'])
 @admin_required
 def mover_equipe(equipe_id):

@@ -1207,7 +1207,7 @@ const atletas=await api('/atletas/'+eid+'/full');
 const adminEq=await api('/equipes/admin?torneio_id='+currentTorneio);
 const eq=adminEq.find(e=>e.id===eid);
 if(!eq){showToast('Equipe não encontrada');return}
-let html=`<div style="margin-bottom:8px"><strong>${esc(eq.nome)}</strong></div>`;
+let html=`<div style="margin-bottom:8px;display:flex;align-items:center;gap:8px"><strong>${esc(eq.nome)}</strong><button class="btn btn-outline btn-sm" style="padding:3px 8px;font-size:.72rem" data-eid="${esc(eid)}" data-nome="${esc(eq.nome)}" onclick="editarNomeEquipe(this.dataset.eid,this.dataset.nome)">✏ Renomear</button></div>`;
 // IMPORTANT: senha is NOT returned by backend (security). Use "🔑 Nova Senha" to issue a new one.
 html+=`<div style="font-size:.82rem;color:var(--g400);margin-bottom:6px">Login: <strong>${esc(eq.login||'')}</strong></div>`;
 html+=`<div style="font-size:.74rem;color:var(--g300);margin-bottom:10px;padding:8px;background:var(--g50);border-radius:6px;border-left:3px solid var(--red)">🔒 Senhas não são exibidas. Para entregar credenciais à equipe, gere uma nova senha com o botão abaixo.</div>`;
@@ -1249,6 +1249,15 @@ const res=await r.json();
 if(res.ok){showToast('Logo enviado!');allEquipes[currentTorneio]=await api('/equipes?torneio_id='+currentTorneio);adminVerEquipe(eid,document.querySelector('#atletasModalBody strong')?.textContent||'')}else{showToast(res.error||'Erro')}
 }
 async function setPagamento(eid,status){await api(`/equipes/${eid}/pagamento`,'POST',{pagamento_status:status});showToast(status==='aprovado'?'Pagamento aprovado!':'Pagamento pendente');closeModal('atletasModal');renderEquipes()}
+async function editarNomeEquipe(eid,nomeAtual){
+const novo=prompt('Novo nome da equipe:',nomeAtual||'');
+if(novo===null)return; // cancelou
+if(!novo.trim()){showToast('Nome não pode ficar vazio');return}
+if(novo.trim()===nomeAtual){return}
+const r=await api('/equipes/'+eid,'PUT',{nome:novo.trim()});
+if(r&&r.ok){showToast('Equipe renomeada: '+r.equipe.nome);await refreshAll();adminVerEquipe(eid);}
+else{showToast(r?.error||'Erro ao renomear')}
+}
 async function resetSenha(eid){
 const nome=(allEquipes[currentTorneio]||[]).find(e=>e.id===eid)?.nome||'esta equipe';
 if(!confirm(`Gerar NOVA senha para ${nome}?\n\nA senha atual deixa de funcionar na hora.`))return;
