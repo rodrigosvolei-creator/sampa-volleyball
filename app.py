@@ -2423,7 +2423,8 @@ def test_state():
             })
     grupos_test = data.get("grupos_test", {}).get(TEST_TORNEIO_ID, {})
     return jsonify({
-        "active": bool(test_equipes and test_jogos),
+        # Ativo se há equipes de teste (o cenário 'sorteio' começa sem jogos de propósito)
+        "active": bool(test_equipes),
         "cenario": cenario,
         "equipes": test_equipes,
         "jogos": test_jogos,
@@ -2640,6 +2641,52 @@ def test_setup_penta_decisao():
 def test_setup_tri_final():
     """Cenário triangular com final: 3 equipes, 3 jogos + final 1ºx2º = 4 jogos."""
     return _test_setup_grupo_unico("tri_final", "tri_final", 3)
+
+@app.route('/api/test/setup-sorteio', methods=['POST'])
+@admin_required
+def test_setup_sorteio():
+    """Cenário SIMULAÇÃO DE SORTEIO: cria 6 equipes de teste SEM grupos e SEM jogos.
+    O front conduz a revelação ao vivo e grava o resultado em /api/test/sorteio-confirmar."""
+    tid = TEST_TORNEIO_ID
+    def _do(data):
+        _wipe_test_environment(data)
+        equipes = [_create_test_team(str(i+1), str(i+1)) for i in range(6)]
+        for eq in equipes:
+            data["equipes"].append(eq)
+        data["test_meta"] = {"cenario": "sorteio", "torneio_id": tid}
+        return {"torneio_id": tid, "equipes_count": len(equipes)}
+    res = update_data(_do)
+    return jsonify({"ok": True, "cenario": "sorteio", **res})
+
+@app.route('/api/test/sorteio-confirmar', methods=['POST'])
+@admin_required
+def test_sorteio_confirmar():
+    """Confirma o resultado do sorteio simulado (body {A:[ids], B:[ids]}, 3+3, só equipes
+    de teste) — grava grupos_test e gera a tabela (formato grupos) toda is_test."""
+    body = request.json or {}
+    A = list(body.get("A") or [])
+    B = list(body.get("B") or [])
+    tid = TEST_TORNEIO_ID
+    def _do(data):
+        test_ids = {e["id"] for e in data.get("equipes", []) if e.get("is_test")}
+        if len(A) != 3 or len(B) != 3 or len(set(A + B)) != 6 or not set(A + B) <= test_ids:
+            return None
+        grupos = {"A": A, "B": B}
+        data.setdefault("grupos_test", {})[tid] = grupos
+        data["test_config"] = {"formato_jogos": "grupos"}
+        jogos = _build_jogos_from_grupos(grupos, "grupos", is_test=True)
+        for j in jogos:
+            j["set_lados"] = []
+            j["em_andamento"] = False
+            j["set_atual"] = None
+        data["jogos"][tid] = jogos  # torneio __test__ só contém jogos de teste
+        # A partir daqui o ambiente vira o cenário 'grupos' normal (lista/classificação prontas)
+        data["test_meta"] = {"cenario": "grupos", "torneio_id": tid}
+        return {"jogos_count": len(jogos), "grupos": grupos}
+    res = update_data(_do)
+    if res is None:
+        return jsonify({"error": "Sorteio inválido: precisa de 3+3 equipes de teste, sem repetição"}), 400
+    return jsonify({"ok": True, **res})
 
 @app.route('/api/test/teardown', methods=['POST'])
 @admin_required

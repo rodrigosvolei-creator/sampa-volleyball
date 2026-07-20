@@ -2189,6 +2189,11 @@ if(!st||!st.active){
     <div style="font-size:.78rem;color:#78350f;margin-bottom:10px">6 equipes sorteadas em A/B (3+3) + 6 jogos de fase + semis + final + 3º.</div>
     <button class="btn btn-black btn-full" style="background:#b45309;color:#fff" onclick="setupModoTeste('grupos')">▶ Criar 6 equipes em 2 grupos</button>
   </div>
+  <div style="background:#fff;border:2px solid #b45309;border-radius:8px;padding:12px">
+    <div style="font-family:'Oswald';font-weight:600;font-size:.78rem;letter-spacing:1px;text-transform:uppercase;color:#b45309;margin-bottom:4px">🎲 Simulação de Sorteio ao vivo</div>
+    <div style="font-size:.78rem;color:#78350f;margin-bottom:10px">Cria 6 equipes e você conduz o <strong>sorteio na tela, equipe por equipe</strong>, caindo nos grupos A e B — como no telão no dia do evento. Pode sortear de novo quantas vezes quiser e, quando gostar, confirma e gera a tabela.</div>
+    <button class="btn btn-black btn-full" style="background:#b45309;color:#fff" onclick="setupModoTeste('sorteio')">▶ Criar 6 equipes e abrir o sorteio</button>
+  </div>
   <div style="background:#fff;border:1px solid #fde68a;border-radius:8px;padding:12px">
     <div style="font-family:'Oswald';font-weight:600;font-size:.78rem;letter-spacing:1px;text-transform:uppercase;color:#b45309;margin-bottom:4px">Cenário 5 — Hexagonal (todos contra todos)</div>
     <div style="font-size:.78rem;color:#78350f;margin-bottom:10px">6 equipes em grupo único + 15 jogos hexagonais + semis (1ºx4º, 2ºx3º) + final + 3º.</div>
@@ -2200,6 +2205,28 @@ if(!st||!st.active){
 // Tem ambiente ativo
 const cenario=st.cenario||'sandbox';
 const jogos=st.jogos||[];
+// Cenário SORTEIO (ainda sem jogos): tela de sorteio ao vivo
+if(cenario==='sorteio'&&!jogos.length){
+window._sorteioEquipes=st.equipes||[];
+window._sorteioResult=null;
+el.innerHTML=`<div style="background:#fff;border:1px solid #fde68a;border-radius:8px;padding:12px;margin-bottom:10px">
+<div style="font-family:'Oswald';font-weight:600;font-size:.85rem;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">🎲 Simulação de Sorteio — 6 equipes · 2 grupos</div>
+<div style="font-size:.78rem;color:#92400e">Clique em iniciar e acompanhe cada equipe sendo sorteada, como no dia.</div></div>
+<div id="sorteioDestaque" style="min-height:64px;display:flex;align-items:center;justify-content:center;background:#1a1a1a;border-radius:10px;margin-bottom:10px;padding:10px;text-align:center;font-family:'Oswald';font-weight:700;font-size:1.15rem;letter-spacing:1px;text-transform:uppercase;color:#fff">Pronto para o sorteio</div>
+<div id="sorteioPote" style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:12px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+<div style="background:#fff;border:2px solid #E31B23;border-radius:10px;overflow:hidden"><div style="background:#E31B23;color:#fff;font-family:'Oswald';font-weight:700;text-align:center;padding:6px;letter-spacing:2px">GRUPO A</div><div id="sorteioGrupoA" style="padding:10px;min-height:96px"></div></div>
+<div style="background:#fff;border:2px solid #0A0A0A;border-radius:10px;overflow:hidden"><div style="background:#0A0A0A;color:#fff;font-family:'Oswald';font-weight:700;text-align:center;padding:6px;letter-spacing:2px">GRUPO B</div><div id="sorteioGrupoB" style="padding:10px;min-height:96px"></div></div>
+</div>
+<button id="sorteioBtnIniciar" class="btn btn-red btn-full" onclick="iniciarSorteioTeste()">🎲 Iniciar Sorteio</button>
+<div id="sorteioAcoes" style="display:none;gap:8px;margin-top:2px">
+<button class="btn btn-outline btn-full" onclick="iniciarSorteioTeste()">🔄 Sortear de novo</button>
+<button class="btn btn-red btn-full" style="margin-top:8px" onclick="confirmarSorteioTeste()">✅ Confirmar grupos e gerar jogos</button>
+</div>
+<button class="btn btn-outline btn-full" onclick="teardownModoTeste()" style="border-color:#dc2626;color:#dc2626;margin-top:10px">🗑 Encerrar e Limpar Tudo</button>`;
+renderSorteioEstado(window._sorteioEquipes,[],[]);
+return;
+}
 const cenarioNome={
   'sandbox':'Sandbox (2 equipes + 1 jogo)',
   'quad_corrido':'Quadrangular pontos corridos (4 times)',
@@ -2254,7 +2281,8 @@ const nomes={
   'penta_decisao':'5 equipes com final + 3º',
   'tri_final':'3 equipes com final',
   'grupos':'6 equipes em 2 grupos',
-  'hexagonal':'6 equipes em hexagonal'
+  'hexagonal':'6 equipes em hexagonal',
+  'sorteio':'6 equipes → sorteio ao vivo'
 };
 if(!confirm(`Criar cenário "${nomes[cenario]||cenario}"?\n\nSe já houver outro ambiente de teste, ele será apagado primeiro.`))return;
 const endpoints={
@@ -2264,7 +2292,8 @@ const endpoints={
   'quad_corrido':'/test/setup-quad-corrido',
   'quad_decisao':'/test/setup-quad-decisao',
   'penta_decisao':'/test/setup-penta-decisao',
-  'tri_final':'/test/setup-tri-final'
+  'tri_final':'/test/setup-tri-final',
+  'sorteio':'/test/setup-sorteio'
 };
 const endpoint=endpoints[cenario]||'/test/setup';
 const r=await api(endpoint,'POST',{});
@@ -2321,6 +2350,49 @@ if(!j){showToast('Jogo de teste não encontrado. Recarregue a página.');return}
 openScoreEdit(jid);
 }
 
+// === Simulação de Sorteio (Modo Teste) ===
+function renderSorteioEstado(pote,A,B){
+const chip=e=>`<span style="background:#fef3c7;border:1px solid #f59e0b;border-radius:20px;padding:5px 12px;font-size:.78rem;font-weight:600">${esc(e.nome)}</span>`;
+const linha=(e,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:.85rem"><span style="font-family:'Oswald';font-weight:700;color:#a1a1aa;width:16px">${i+1}.</span><strong>${esc(e.nome)}</strong></div>`;
+const p=document.getElementById('sorteioPote'),ga=document.getElementById('sorteioGrupoA'),gb=document.getElementById('sorteioGrupoB');
+if(p)p.innerHTML=pote.length?pote.map(chip).join(''):'<span style="font-size:.75rem;color:#a1a1aa">— pote vazio —</span>';
+if(ga)ga.innerHTML=A.map(linha).join('')||'<div style="font-size:.75rem;color:#d4d4d8;text-align:center;padding:14px 0">aguardando…</div>';
+if(gb)gb.innerHTML=B.map(linha).join('')||'<div style="font-size:.75rem;color:#d4d4d8;text-align:center;padding:14px 0">aguardando…</div>';
+}
+let _sorteioRodando=false;
+async function iniciarSorteioTeste(){
+if(_sorteioRodando)return;
+_sorteioRodando=true;
+const destaque=document.getElementById('sorteioDestaque');
+const btnIni=document.getElementById('sorteioBtnIniciar'),acoes=document.getElementById('sorteioAcoes');
+if(btnIni)btnIni.style.display='none';
+if(acoes)acoes.style.display='none';
+// embaralha (Fisher-Yates) e revela alternando A → B
+const eqs=[...(window._sorteioEquipes||[])];
+for(let i=eqs.length-1;i>0;i--){const k=Math.floor(Math.random()*(i+1));[eqs[i],eqs[k]]=[eqs[k],eqs[i]]}
+const A=[],B=[];let pote=[...(window._sorteioEquipes||[])];
+renderSorteioEstado(pote,A,B);
+for(let i=0;i<eqs.length;i++){
+  const eq=eqs[i],alvo=i%2===0?'A':'B';
+  destaque.style.color='#f59e0b';destaque.textContent='🎲 Sorteando…';
+  await new Promise(r=>setTimeout(r,800));
+  destaque.style.color='#fff';destaque.innerHTML=`${esc(eq.nome)} <span style="color:${alvo==='A'?'#ff6b6b':'#a1a1aa'}">→ GRUPO ${alvo}</span>`;
+  (alvo==='A'?A:B).push(eq);
+  pote=pote.filter(x=>x.id!==eq.id);
+  renderSorteioEstado(pote,A,B);
+  await new Promise(r=>setTimeout(r,1000));
+}
+destaque.style.color='#4ade80';destaque.textContent='✅ Sorteio concluído!';
+window._sorteioResult={A:A.map(x=>x.id),B:B.map(x=>x.id)};
+if(acoes)acoes.style.display='block';
+_sorteioRodando=false;
+}
+async function confirmarSorteioTeste(){
+if(!window._sorteioResult){showToast('Rode o sorteio primeiro');return}
+const r=await api('/test/sorteio-confirmar','POST',window._sorteioResult);
+if(r&&r.ok){showToast('Grupos confirmados — '+r.jogos_count+' jogos gerados!');renderModoTeste()}
+else{showToast(r?.error||'Erro ao confirmar')}
+}
 async function teardownModoTeste(){
 if(!confirm('Limpar TUDO do ambiente de teste? Equipes e jogos de teste serão apagados.'))return;
 const r=await api('/test/teardown','POST',{});
