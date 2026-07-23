@@ -970,7 +970,9 @@ window._atlCache=window._atlCache||{};
 c.innerHTML='<div class="card"><div class="card-title" style="margin-bottom:8px;font-size:.9rem">Atletas ('+atletas.length+')</div>'+
 atletas.map((a,i)=>{window._atlCache[a.id]=a;let dn=a.data_nascimento||'';if(dn&&dn.includes('-')){try{const p=dn.split('-');dn=p[2]+'/'+p[1]+'/'+p[0]}catch(e){}}
 return`<div class="atleta-item"><span style="font-family:'Oswald';font-weight:700;color:var(--red);width:24px">${i+1}</span><div style="flex:1"><strong>${esc(a.nome_completo)}</strong><br><span style="color:var(--g400);font-size:.78rem">${esc(dn)} · ${esc(a.tipo_documento)} ${esc(a.numero_documento)}</span></div>
-${(isAdmin||teamSession)?`<button class="btn btn-outline btn-sm" data-aid="${esc(a.id)}" onclick="abrirEditarAtleta('${esc(currentInscEquipeId)}',this.dataset.aid)">✏</button><button class="btn btn-danger btn-sm" data-aid="${esc(a.id)}" onclick="deleteAtletaInsc(this.dataset.aid)">✕</button>`:''}</div>`}).join('')+'</div>';
+${(isAdmin||teamSession)?`<button class="btn btn-outline btn-sm" data-aid="${esc(a.id)}" onclick="abrirEditarAtleta('${esc(currentInscEquipeId)}',this.dataset.aid)">✏</button><button class="btn btn-danger btn-sm" data-aid="${esc(a.id)}" onclick="deleteAtletaInsc(this.dataset.aid)">✕</button>`:''}</div>`}).join('')
++(((isAdmin||teamSession)&&atletas.length)?`<a href="/api/cartelao/${esc(currentInscEquipeId)}" target="_blank" class="btn btn-red btn-full" style="margin-top:12px">🖨 Imprimir Cartelão</a>`:'')
++'</div>';
 }
 // === LOGO EQUIPE (team upload) ===
 async function renderLogoEquipe(){
