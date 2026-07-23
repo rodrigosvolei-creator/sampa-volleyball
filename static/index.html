@@ -966,10 +966,11 @@ const endpoint=(isAdmin||teamSession)?'/atletas/'+currentInscEquipeId+'/full':'/
 const atletas=await api(endpoint);
 const c=document.getElementById('atletasList');
 if(!atletas.length){c.innerHTML='<div class="card" style="text-align:center;color:var(--g300);font-size:.85rem">Nenhum atleta cadastrado</div>';return}
+window._atlCache=window._atlCache||{};
 c.innerHTML='<div class="card"><div class="card-title" style="margin-bottom:8px;font-size:.9rem">Atletas ('+atletas.length+')</div>'+
-atletas.map((a,i)=>{let dn=a.data_nascimento||'';if(dn&&dn.includes('-')){try{const p=dn.split('-');dn=p[2]+'/'+p[1]+'/'+p[0]}catch(e){}}
+atletas.map((a,i)=>{window._atlCache[a.id]=a;let dn=a.data_nascimento||'';if(dn&&dn.includes('-')){try{const p=dn.split('-');dn=p[2]+'/'+p[1]+'/'+p[0]}catch(e){}}
 return`<div class="atleta-item"><span style="font-family:'Oswald';font-weight:700;color:var(--red);width:24px">${i+1}</span><div style="flex:1"><strong>${esc(a.nome_completo)}</strong><br><span style="color:var(--g400);font-size:.78rem">${esc(dn)} · ${esc(a.tipo_documento)} ${esc(a.numero_documento)}</span></div>
-${(isAdmin||teamSession)?`<button class="btn btn-danger btn-sm" data-aid="${esc(a.id)}" onclick="deleteAtletaInsc(this.dataset.aid)">✕</button>`:''}</div>`}).join('')+'</div>';
+${(isAdmin||teamSession)?`<button class="btn btn-outline btn-sm" data-aid="${esc(a.id)}" onclick="abrirEditarAtleta('${esc(currentInscEquipeId)}',this.dataset.aid)">✏</button><button class="btn btn-danger btn-sm" data-aid="${esc(a.id)}" onclick="deleteAtletaInsc(this.dataset.aid)">✕</button>`:''}</div>`}).join('')+'</div>';
 }
 // === LOGO EQUIPE (team upload) ===
 async function renderLogoEquipe(){
@@ -1025,6 +1026,42 @@ const res=await r.json();
 if(res.ok){showToast('Comprovante enviado! Aguarde aprovação.')}else{showToast(res.error||'Erro')}
 }
 async function deleteAtletaInsc(aid){await api('/atletas/'+currentInscEquipeId+'/'+aid,'DELETE');showToast('Removido');renderAtletasInsc()}
+// Modal de edição de atleta (equipe ou admin) — corrige nome/nascimento/documento
+function abrirEditarAtleta(eqId,aid){
+const a=(window._atlCache||{})[aid];
+if(!a){showToast('Atleta não carregado — recarregue a página');return}
+const ov=document.createElement('div');
+ov.id='editAtletaOverlay';
+ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+ov.innerHTML=`<div style="background:#fff;border-radius:14px;max-width:430px;width:100%;overflow:hidden">
+<div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid #e5e7eb">
+<div style="font-family:'Oswald';font-weight:700;letter-spacing:1px;text-transform:uppercase">✏ Editar Atleta</div>
+<button style="background:none;border:none;font-size:1.5rem;cursor:pointer;color:#6b7280" data-close="1">✕</button>
+</div>
+<div style="padding:16px 18px 18px">
+<div class="form-group"><label class="form-label">Nome Completo</label><input class="form-input" id="edAtlNome" value="${esc(a.nome_completo||'')}"></div>
+<div class="form-group"><label class="form-label">Data de Nascimento</label><input class="form-input" id="edAtlNasc" type="date" value="${esc(a.data_nascimento||'')}"></div>
+<div style="display:flex;gap:8px">
+<div class="form-group" style="flex:1"><label class="form-label">Documento</label><select class="form-input" id="edAtlTipo"><option value="RG"${a.tipo_documento==='RG'?' selected':''}>RG</option><option value="CPF"${a.tipo_documento==='CPF'?' selected':''}>CPF</option><option value="CNH"${a.tipo_documento==='CNH'?' selected':''}>CNH</option></select></div>
+<div class="form-group" style="flex:2"><label class="form-label">Número</label><input class="form-input" id="edAtlNum" value="${esc(a.numero_documento||'')}"></div>
+</div>
+<button class="btn btn-red btn-full" data-save="1">💾 Salvar Alterações</button>
+<button class="btn btn-outline btn-full" style="margin-top:8px" data-close="1">Cancelar</button>
+</div></div>`;
+ov.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>ov.remove());
+ov.querySelector('[data-save]').onclick=async()=>{
+  const nome=document.getElementById('edAtlNome').value.trim();
+  if(!nome){showToast('Nome não pode ficar vazio');return}
+  const body={nome_completo:nome,data_nascimento:document.getElementById('edAtlNasc').value,
+    tipo_documento:document.getElementById('edAtlTipo').value,numero_documento:document.getElementById('edAtlNum').value.trim()};
+  const r=await api('/atletas/'+eqId+'/'+aid,'PUT',body);
+  if(r&&r.ok){ov.remove();showToast('Atleta atualizado!');
+    if(document.getElementById('atletasModal')?.classList.contains('active'))adminVerEquipe(eqId);
+    else renderAtletasInsc();
+  }else{showToast(r?.error||'Erro ao salvar')}
+};
+document.body.appendChild(ov);
+}
 function finalizarInscricao(){showToast('Inscrição salva!');logoutTeam()}
 
 // === EQUIPES ===
@@ -1227,8 +1264,9 @@ ${eq.foto?`<img src="/api/uploads/${esc(eq.foto)}" alt="" style="width:100%;max-
 <input type="file" id="adminFotoEquipe" accept="image/*" style="font-size:.82rem;margin-bottom:8px">
 <button class="btn btn-black btn-sm btn-full" onclick="adminUploadFoto('${esc(eid)}')">📤 ${eq.foto?'Trocar':'Enviar'} Foto</button></div>`;
 html+=`<div style="font-size:.82rem;color:var(--g400);margin-bottom:8px">${atletas.length} atleta(s)</div>`;
-html+=atletas.map((a,i)=>{let dn=a.data_nascimento||'';if(dn&&dn.includes('-')){try{const p=dn.split('-');dn=p[2]+'/'+p[1]+'/'+p[0]}catch(e){}}
-return`<div class="atleta-item"><span style="font-family:'Oswald';font-weight:700;color:var(--red);width:22px">${i+1}</span><div style="flex:1"><strong>${esc(a.nome_completo)}</strong><br><span style="color:var(--g400);font-size:.78rem">${esc(dn)} · ${esc(a.tipo_documento)} ${esc(a.numero_documento)}</span></div></div>`}).join('');
+window._atlCache=window._atlCache||{};
+html+=atletas.map((a,i)=>{window._atlCache[a.id]=a;let dn=a.data_nascimento||'';if(dn&&dn.includes('-')){try{const p=dn.split('-');dn=p[2]+'/'+p[1]+'/'+p[0]}catch(e){}}
+return`<div class="atleta-item"><span style="font-family:'Oswald';font-weight:700;color:var(--red);width:22px">${i+1}</span><div style="flex:1"><strong>${esc(a.nome_completo)}</strong><br><span style="color:var(--g400);font-size:.78rem">${esc(dn)} · ${esc(a.tipo_documento)} ${esc(a.numero_documento)}</span></div><button class="btn btn-outline btn-sm" data-aid="${esc(a.id)}" data-eid="${esc(eid)}" onclick="abrirEditarAtleta(this.dataset.eid,this.dataset.aid)">✏</button></div>`}).join('');
 html+=`<div style="margin-top:14px"><a href="/api/cartelao/${esc(eid)}" target="_blank" class="btn btn-red btn-full">🖨 Imprimir Cartelão</a></div>`;
 document.getElementById('atletasModalBody').innerHTML=html;openModal('atletasModal');
 }

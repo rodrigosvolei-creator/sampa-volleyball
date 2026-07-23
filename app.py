@@ -1461,6 +1461,36 @@ def add_atleta(equipe_id):
         return atleta
     return jsonify(update_data(_do)), 201
 
+@app.route('/api/atletas/<equipe_id>/<atleta_id>', methods=['PUT'])
+@team_or_admin_required
+def update_atleta(equipe_id, atleta_id):
+    """Edita dados de um atleta (nome/nascimento/documento) — correção de digitação.
+    Mesma permissão do cadastro: a própria equipe ou admin."""
+    body = request.json or {}
+    def _do(data):
+        for a in data.get("atletas", {}).get(equipe_id, []):
+            if a.get("id") == atleta_id:
+                if "nome_completo" in body:
+                    nome = (body.get("nome_completo") or "").strip()
+                    if not nome:
+                        return ("invalido", "Nome não pode ficar vazio")
+                    a["nome_completo"] = nome[:120]
+                if "data_nascimento" in body:
+                    a["data_nascimento"] = (body.get("data_nascimento") or "").strip()[:10]
+                if "tipo_documento" in body:
+                    a["tipo_documento"] = (body.get("tipo_documento") or "").strip()[:8]
+                if "numero_documento" in body:
+                    a["numero_documento"] = (body.get("numero_documento") or "").strip()[:30]
+                return ("ok", a)
+        return None
+    res = update_data(_do)
+    if res is None:
+        return jsonify({"error": "Atleta não encontrado"}), 404
+    if res[0] == "invalido":
+        return jsonify({"error": res[1]}), 400
+    do_backup()
+    return jsonify({"ok": True, "atleta": res[1]})
+
 @app.route('/api/atletas/<equipe_id>/<atleta_id>', methods=['DELETE'])
 @team_or_admin_required
 def delete_atleta(equipe_id, atleta_id):
