@@ -1431,15 +1431,37 @@ const startBlock=canStart?`<div class="live-start-block">
 </div>
 <div class="score-mode-divider">ou edite manualmente</div>`:'';
 
+// Grid de parciais set a set (sets são DERIVADOS das parciais — sem digitar 2x0 na mão)
+const NSETS=Math.max(3,(j.parciais||[]).length);
+const _pv=i=>{const p=(j.parciais||[])[i];if(!p)return['',''];const m=String(p).split('-');return[(m[0]||'').trim(),(m[1]||'').trim()]};
+let gridHead='<th style="text-align:left"></th>',rowA='',rowB='';
+for(let i=0;i<NSETS;i++){const[pa,pb]=_pv(i);
+gridHead+=`<th style="font-family:'Oswald';font-size:.72rem;letter-spacing:1px;color:var(--g400);padding:6px 4px">SET ${i+1}</th>`;
+rowA+=`<td style="padding:4px"><input id="setg_a_${i}" type="number" min="0" max="99" inputmode="numeric" value="${esc(pa)}" oninput="updateSetsFromGrid()" style="width:100%;max-width:74px;padding:10px 4px;text-align:center;font-family:'Oswald';font-weight:700;font-size:1.05rem;border:1.5px solid var(--g100);border-radius:8px"></td>`;
+rowB+=`<td style="padding:4px"><input id="setg_b_${i}" type="number" min="0" max="99" inputmode="numeric" value="${esc(pb)}" oninput="updateSetsFromGrid()" style="width:100%;max-width:74px;padding:10px 4px;text-align:center;font-family:'Oswald';font-weight:700;font-size:1.05rem;border:1.5px solid var(--g100);border-radius:8px"></td>`;}
 document.getElementById('scoreModalBody').innerHTML=`${tsel}${startBlock}
-<div style="text-align:center;margin-bottom:16px"><div style="font-family:'Oswald';font-weight:600;text-transform:uppercase">${esc(eA)} × ${esc(eB)}</div></div>
-<div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:16px">
-<div style="text-align:center"><div class="form-label">${esc(eA)}</div><input class="score-input" id="setsA" type="number" min="0" max="3" value="${j.sets_a|0}"></div>
-<div style="font-family:'Oswald';color:var(--g300);font-size:1.2rem">×</div>
-<div style="text-align:center"><div class="form-label">${esc(eB)}</div><input class="score-input" id="setsB" type="number" min="0" max="3" value="${j.sets_b|0}"></div></div>
-<div class="form-group"><label class="form-label">Parciais (ex: 25-22, 18-25, 15-12)</label><input class="form-input" id="parciais" value="${esc((j.parciais||[]).join(', '))}"></div>
-<div style="display:flex;gap:8px"><button class="btn btn-black btn-full" data-jid="${esc(jid)}" onclick="saveScore(this.dataset.jid,false)">Salvar</button><button class="btn btn-red btn-full" data-jid="${esc(jid)}" onclick="saveScore(this.dataset.jid,true)">Finalizar</button></div>`;
+<div style="text-align:center;margin-bottom:10px"><div style="font-family:'Oswald';font-weight:600;text-transform:uppercase">${esc(eA)} × ${esc(eB)}</div>
+<div style="font-family:'Bebas Neue',sans-serif;font-size:2.1rem;letter-spacing:3px;line-height:1.1;margin-top:2px">SETS <span id="setsCalc" style="color:var(--red)">${j.sets_a|0} × ${j.sets_b|0}</span></div>
+<div style="font-size:.7rem;color:var(--g400)">calculado automaticamente pelas parciais</div></div>
+<div class="table-wrap"><table style="width:100%;border-collapse:collapse;text-align:center">
+<tr>${gridHead}</tr>
+<tr><td style="text-align:left;font-family:'Oswald';font-weight:600;font-size:.78rem;text-transform:uppercase;padding:4px;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(eA)}</td>${rowA}</tr>
+<tr><td style="text-align:left;font-family:'Oswald';font-weight:600;font-size:.78rem;text-transform:uppercase;padding:4px;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(eB)}</td>${rowB}</tr>
+</table></div>
+<div style="display:flex;gap:8px;margin-top:14px"><button class="btn btn-black btn-full" data-jid="${esc(jid)}" onclick="saveScore(this.dataset.jid,false)">Salvar</button><button class="btn btn-red btn-full" data-jid="${esc(jid)}" onclick="saveScore(this.dataset.jid,true)">Finalizar</button></div>`;
+updateSetsFromGrid();
 openModal('scoreModal');
+}
+// Lê o grid de parciais: [[a,b],...] como strings (vazios = set não jogado)
+function _gridSets(){
+const out=[];let i=0;
+while(true){const ea=document.getElementById('setg_a_'+i),eb=document.getElementById('setg_b_'+i);
+if(!ea||!eb)break;out.push([ea.value.trim(),eb.value.trim()]);i++}
+return out}
+function updateSetsFromGrid(){
+let sa=0,sb=0;
+for(const[av,bv]of _gridSets()){if(av===''||bv==='')continue;const a=+av,b=+bv;if(a>b)sa++;else if(b>a)sb++}
+const el=document.getElementById('setsCalc');if(el)el.textContent=sa+' × '+sb;
 }
 
 // === AO VIVO: render do painel ===
@@ -1726,12 +1748,25 @@ allJogos[currentTorneio]=await loadJogosForCurrentTorneio();
 openScoreEdit(liveJid);
 }
 async function saveScore(jid,fin){
-const sa=parseInt(document.getElementById('setsA').value)||0,sb=parseInt(document.getElementById('setsB').value)||0;
-const ps=document.getElementById('parciais').value.trim(),parciais=ps?ps.split(',').map(s=>s.trim()):[];
+// Coleta o grid set a set; sets do jogo são derivados (nunca digitados)
+const sets=_gridSets();const parciais=[];let sa=0,sb=0;
+for(let i=0;i<sets.length;i++){
+const[av,bv]=sets[i];
+if(av===''&&bv==='')continue; // set não jogado
+if(av===''||bv===''){showToast(`Set ${i+1}: preencha os dois lados`);return}
+if(parciais.length<i){showToast(`Preencha os sets em ordem (Set ${parciais.length+1} está vazio)`);return}
+const a=+av,b=+bv;
+if(a===b){showToast(`Set ${i+1}: não pode terminar empatado (${a}-${b})`);return}
+parciais.push(a+'-'+b);
+if(a>b)sa++;else sb++;
+}
+if(fin&&sa===sb){showToast(`Pra finalizar precisa de um vencedor nos sets (está ${sa} × ${sb})`);return}
 const body={sets_a:sa,sets_b:sb,parciais,finalizado:fin};
 const eqA=document.getElementById('scoreEqA'),eqB=document.getElementById('scoreEqB');
 if(eqA?.value)body.equipe_a=eqA.value;if(eqB?.value)body.equipe_b=eqB.value;
-await api('/jogos/'+currentTorneio+'/'+jid,'PUT',body);closeModal('scoreModal');showToast(fin?'Finalizado!':'Salvo');
+const r=await api('/jogos/'+currentTorneio+'/'+jid,'PUT',body);
+if(r&&r.error){showToast(r.error);return}
+closeModal('scoreModal');showToast(fin?'Finalizado!':'Salvo');
 allJogos[currentTorneio]=await loadJogosForCurrentTorneio();renderJogos();
 }
 async function gerarJogos(){if(!confirm('Gerar jogos?'))return;allJogos[currentTorneio]=await api('/jogos/'+currentTorneio+'/gerar','POST');showToast('Gerados!');renderJogos()}

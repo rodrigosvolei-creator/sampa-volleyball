@@ -1807,6 +1807,12 @@ def update_jogo(torneio_id, jogo_id):
         for jogo in data["jogos"].get(torneio_id, []):
             if jogo["id"] == jogo_id:
                 is_test_jogo = bool(jogo.get("is_test"))
+                # Vôlei não tem empate: bloqueia finalizar com sets iguais (valida antes de aplicar)
+                if body.get("finalizado"):
+                    fs_a = int(body.get("sets_a", jogo.get("sets_a", 0)) or 0)
+                    fs_b = int(body.get("sets_b", jogo.get("sets_b", 0)) or 0)
+                    if fs_a == fs_b:
+                        return {"error": f"Não dá pra finalizar empatado em sets ({fs_a}x{fs_b})."}
                 for k in ["sets_a","sets_b","parciais","finalizado"]:
                     if k in body: jogo[k] = body[k]
                 if body.get("equipe_a") is not None: jogo["equipe_a"] = body["equipe_a"]
@@ -1819,6 +1825,8 @@ def update_jogo(torneio_id, jogo_id):
         auto_classify_semis(data, torneio_id, test_mode=is_test_jogo)
         return {"ok": True}
     res = update_data(_do)
+    if res.get("error"):
+        return jsonify(res), 400
     do_backup()
     return jsonify(res)
 

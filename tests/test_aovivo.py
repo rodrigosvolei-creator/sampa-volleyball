@@ -90,6 +90,15 @@ dv=rank_pos[gf["equipe_a"]]-rank_pre.get(gf["equipe_a"],0)
 dp=rank_pos[gf["equipe_b"]]-rank_pre.get(gf["equipe_b"],0)
 check(dv==2 and dp==1, f"classificação computa o 2x1 (vencedor +2, perdedor +1) — veio +{dv}/+{dp}")
 
+print("=== PUT manual (grid) também barra finalizar empatado ===")
+jid3=jogos[2]["id"]
+r=c.put(f"/api/jogos/{T}/{jid3}", json={"sets_a":1,"sets_b":1,"parciais":["25-20","20-25"],"finalizado":True})
+check(r.status_code==400, "PUT finalizado 1x1 barrado (400)")
+st=j(c.get(f"/api/jogos/{T}/admin")); g3=[x for x in st if x["id"]==jid3][0]
+check(not g3["finalizado"] and g3["sets_a"]==0, "jogo intocado após tentativa inválida")
+r=c.put(f"/api/jogos/{T}/{jid3}", json={"sets_a":2,"sets_b":1,"parciais":["25-20","20-25","15-10"],"finalizado":True})
+check(r.status_code==200, "PUT 2x1 válido finaliza normal")
+
 print(f"\n{'==== AO VIVO OK ====' if not erros else '==== FALHAS: '+str(len(erros))+' ===='}")
 for e in erros: print("  -",e)
 shutil.rmtree(TMP, ignore_errors=True)
