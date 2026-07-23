@@ -1947,6 +1947,9 @@ def atualizar_pontos_aovivo(torneio_id, jogo_id):
             # Inverte lado_esq
             sa["lado_esq"] = jogo["equipe_b"] if sa.get("lado_esq") == jogo["equipe_a"] else jogo["equipe_a"]
             sa["troca_8_feita"] = True
+            # O placar é POR LADO da tela — na troca de quadra os pontos acompanham as
+            # equipes, então os dois lados também se invertem (senão o placar troca de dono).
+            sa["pontos_a"], sa["pontos_b"] = sa["pontos_b"], sa["pontos_a"]
             troca_acionada = True
         return {"ok": True, "set_atual": sa, "troca_acionada": troca_acionada}
     res = update_data(_do)
@@ -2019,26 +2022,37 @@ def encerrar_jogo_aovivo(torneio_id, jogo_id):
         jogo = _find_jogo(data, torneio_id, jogo_id)
         if not jogo:
             return {"error": "Jogo não encontrado"}
+        # 1) Calcula (sem aplicar ainda) a absorção do set em andamento, se houver placar
         sa = jogo.get("set_atual")
+        absorver = None  # (pts_a, pts_b, lado_esq)
         if sa:
             pa = int(sa.get("pontos_a", 0))
             pb = int(sa.get("pontos_b", 0))
             if (pa > 0 or pb > 0) and pa != pb:
                 lado_esq = sa.get("lado_esq") or jogo.get("equipe_a")
                 if lado_esq == jogo.get("equipe_a"):
-                    pts_a, pts_b = pa, pb
+                    absorver = (pa, pb, lado_esq)
                 else:
-                    pts_a, pts_b = pb, pa
-                parciais = list(jogo.get("parciais") or [])
-                parciais.append(f"{pts_a}-{pts_b}")
-                jogo["parciais"] = parciais
-                set_lados = list(jogo.get("set_lados") or [])
-                set_lados.append(lado_esq)
-                jogo["set_lados"] = set_lados
-                if pts_a > pts_b:
-                    jogo["sets_a"] = int(jogo.get("sets_a", 0)) + 1
-                else:
-                    jogo["sets_b"] = int(jogo.get("sets_b", 0)) + 1
+                    absorver = (pb, pa, lado_esq)
+        # 2) Valida: vôlei não tem empate — bloqueia finalizar sem vencedor
+        fs_a = int(jogo.get("sets_a", 0)) + (1 if absorver and absorver[0] > absorver[1] else 0)
+        fs_b = int(jogo.get("sets_b", 0)) + (1 if absorver and absorver[1] > absorver[0] else 0)
+        if fs_a == fs_b:
+            return {"error": f"Não dá pra finalizar empatado em sets ({fs_a}x{fs_b}). "
+                             "Encerre o set em andamento (ou ajuste o placar) até ter um vencedor."}
+        # 3) Aplica a absorção e finaliza
+        if absorver:
+            pts_a, pts_b, lado_esq = absorver
+            parciais = list(jogo.get("parciais") or [])
+            parciais.append(f"{pts_a}-{pts_b}")
+            jogo["parciais"] = parciais
+            set_lados = list(jogo.get("set_lados") or [])
+            set_lados.append(lado_esq)
+            jogo["set_lados"] = set_lados
+            if pts_a > pts_b:
+                jogo["sets_a"] = int(jogo.get("sets_a", 0)) + 1
+            else:
+                jogo["sets_b"] = int(jogo.get("sets_b", 0)) + 1
         jogo["em_andamento"] = False
         jogo["set_atual"] = None
         jogo["finalizado"] = True
