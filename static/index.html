@@ -1459,8 +1459,17 @@ while(true){const ea=document.getElementById('setg_a_'+i),eb=document.getElement
 if(!ea||!eb)break;out.push([ea.value.trim(),eb.value.trim()]);i++}
 return out}
 function updateSetsFromGrid(){
-let sa=0,sb=0;
-for(const[av,bv]of _gridSets()){if(av===''||bv==='')continue;const a=+av,b=+bv;if(a>b)sa++;else if(b>a)sb++}
+let sa=0,sb=0;const sets=_gridSets();
+for(let i=0;i<sets.length;i++){
+const[av,bv]=sets[i];
+const ea=document.getElementById('setg_a_'+i),eb=document.getElementById('setg_b_'+i);
+const preenchido=av!==''&&bv!=='';
+const invalido=preenchido&&Math.abs((+av)-(+bv))<2; // empate ou 1 de diferença: set não existe
+const cor=invalido?'#dc2626':'var(--g100)';
+if(ea)ea.style.borderColor=cor;if(eb)eb.style.borderColor=cor;
+if(!preenchido||invalido)continue;
+const a=+av,b=+bv;if(a>b)sa++;else sb++;
+}
 const el=document.getElementById('setsCalc');if(el)el.textContent=sa+' × '+sb;
 }
 
@@ -1757,6 +1766,8 @@ if(av===''||bv===''){showToast(`Set ${i+1}: preencha os dois lados`);return}
 if(parciais.length<i){showToast(`Preencha os sets em ordem (Set ${parciais.length+1} está vazio)`);return}
 const a=+av,b=+bv;
 if(a===b){showToast(`Set ${i+1}: não pode terminar empatado (${a}-${b})`);return}
+if(Math.abs(a-b)<2){showToast(`Set ${i+1}: ${a}-${b} não existe no vôlei — o set vai até abrir 2 pontos de diferença (ex: 26-24)`);return}
+if(Math.max(a,b)<15&&!confirm(`Set ${i+1} terminou ${a}-${b}? Placar baixo pra um set completo — confirma?`))return;
 parciais.push(a+'-'+b);
 if(a>b)sa++;else sb++;
 }

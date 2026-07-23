@@ -1807,6 +1807,14 @@ def update_jogo(torneio_id, jogo_id):
         for jogo in data["jogos"].get(torneio_id, []):
             if jogo["id"] == jogo_id:
                 is_test_jogo = bool(jogo.get("is_test"))
+                # Parciais: diferença mínima de 2 pontos por set (25-24 não existe no vôlei)
+                for p in (body.get("parciais") or []):
+                    try:
+                        pa_, pb_ = (int(x) for x in str(p).replace("x", "-").split("-")[:2])
+                    except (ValueError, TypeError):
+                        continue
+                    if pa_ == pb_ or abs(pa_ - pb_) < 2:
+                        return {"error": f"Parcial {p}: o set precisa terminar com 2 pontos de diferença."}
                 # Vôlei não tem empate: bloqueia finalizar com sets iguais (valida antes de aplicar)
                 if body.get("finalizado"):
                     fs_a = int(body.get("sets_a", jogo.get("sets_a", 0)) or 0)
@@ -1981,6 +1989,9 @@ def encerrar_set_aovivo(torneio_id, jogo_id):
         pb = int(sa.get("pontos_b", 0))
         if pa == pb:
             return {"error": "Empate. Ajuste o placar antes de encerrar o set."}
+        if abs(pa - pb) < 2:
+            return {"error": f"Diferença mínima de 2 pontos pra fechar o set ({pa}-{pb}). "
+                             "No vôlei o set segue até abrir 2 de vantagem."}
         # Registra a parcial sempre como "pontos_equipe_a-pontos_equipe_b"
         # (independente do lado da quadra, pra manter coerência histórica)
         lado_esq = sa.get("lado_esq") or jogo.get("equipe_a")
@@ -2037,6 +2048,9 @@ def encerrar_jogo_aovivo(torneio_id, jogo_id):
             pa = int(sa.get("pontos_a", 0))
             pb = int(sa.get("pontos_b", 0))
             if (pa > 0 or pb > 0) and pa != pb:
+                if abs(pa - pb) < 2:
+                    return {"error": f"O set em andamento está {pa}-{pb} (diferença mínima é 2). "
+                                     "Ajuste o placar do set (ou zere) antes de encerrar o jogo."}
                 lado_esq = sa.get("lado_esq") or jogo.get("equipe_a")
                 if lado_esq == jogo.get("equipe_a"):
                     absorver = (pa, pb, lado_esq)

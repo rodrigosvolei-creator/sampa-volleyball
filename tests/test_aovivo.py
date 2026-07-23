@@ -99,6 +99,23 @@ check(not g3["finalizado"] and g3["sets_a"]==0, "jogo intocado após tentativa i
 r=c.put(f"/api/jogos/{T}/{jid3}", json={"sets_a":2,"sets_b":1,"parciais":["25-20","20-25","15-10"],"finalizado":True})
 check(r.status_code==200, "PUT 2x1 válido finaliza normal")
 
+print("=== diferença mínima de 2 pontos (regra do vôlei) ===")
+jid4=jogos[3]["id"]
+c.post(f"/api/jogos/{T}/{jid4}/iniciar", json={})
+c.post(f"/api/jogos/{T}/{jid4}/pontos", json={"pontos_a":25,"pontos_b":24})
+r=c.post(f"/api/jogos/{T}/{jid4}/encerrar-set", json={})
+check(r.status_code==400 and "2" in (j(r).get("error") or ""), "ao vivo: fechar set 25-24 barrado")
+r=c.post(f"/api/jogos/{T}/{jid4}/encerrar", json={})
+check(r.status_code==400, "ao vivo: encerrar JOGO com set atual 25-24 barrado")
+c.post(f"/api/jogos/{T}/{jid4}/pontos", json={"pontos_a":26,"pontos_b":24})
+r=c.post(f"/api/jogos/{T}/{jid4}/encerrar-set", json={})
+check(r.status_code==200, "26-24 fecha normal (2 de diferença)")
+jid5=jogos[4]["id"]
+r=c.put(f"/api/jogos/{T}/{jid5}", json={"sets_a":2,"sets_b":0,"parciais":["25-24","25-20"],"finalizado":True})
+check(r.status_code==400, "PUT grid: parcial 25-24 barrada")
+r=c.put(f"/api/jogos/{T}/{jid5}", json={"sets_a":2,"sets_b":0,"parciais":["26-24","25-20"],"finalizado":True})
+check(r.status_code==200, "PUT grid: 26-24 aceita")
+
 print(f"\n{'==== AO VIVO OK ====' if not erros else '==== FALHAS: '+str(len(erros))+' ===='}")
 for e in erros: print("  -",e)
 shutil.rmtree(TMP, ignore_errors=True)
