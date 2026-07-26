@@ -2337,6 +2337,90 @@ def list_backups():
     backups = sorted([f for f in os.listdir(BACKUP_DIR) if f.endswith('.json')], reverse=True)
     return jsonify(backups)
 
+def _safe_backup_path(filename):
+    """Resolve um nome de backup para um caminho seguro dentro de BACKUP_DIR (anti path-traversal)."""
+    ensure_dirs()
+    base = os.path.basename(filename or "")
+    if not base.endswith(".json"):
+        return None
+    full = os.path.join(BACKUP_DIR, base)
+    if os.path.abspath(full) != os.path.abspath(os.path.join(BACKUP_DIR, base)):
+        return None
+    return full if os.path.isfile(full) else None
+
+def _resumo_backup(path):
+    """Abre um JSON (backup ou o arquivo vivo) e resume placares por torneio."""
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            d = json.load(f)
+    except Exception as e:
+        return {"erro": str(e)}
+    jogos = d.get("jogos", {}) or {}
+    nomes = {t.get("id"): t.get("nome", t.get("id")) for t in d.get("torneios", [])}
+    por_torneio = []
+    tot_placar = tot_final = 0
+    for tid, lst in jogos.items():
+        cp = sum(1 for j in (lst or []) if (j.get("sets_a", 0) or 0) + (j.get("sets_b", 0) or 0) > 0)
+        cf = sum(1 for j in (lst or []) if j.get("finalizado"))
+        tot_placar += cp; tot_final += cf
+        if cp or cf:
+            por_torneio.append({"torneio_id": tid, "nome": nomes.get(tid, tid),
+                                "jogos_com_placar": cp, "jogos_finalizados": cf})
+    return {"jogos_com_placar": tot_placar, "jogos_finalizados": tot_final,
+            "n_torneios": len(d.get("torneios", [])), "n_equipes": len(d.get("equipes", [])),
+            "por_torneio": por_torneio}
+
+@app.route('/api/backups/inspect', methods=['GET'])
+@admin_required
+def inspect_backups():
+    """Para cada backup recente, quantos jogos têm placar/estão finalizados (por torneio).
+    Inclui o estado ATUAL pra comparação — assim dá pra escolher de onde restaurar."""
+    ensure_dirs()
+    files = sorted([f for f in os.listdir(BACKUP_DIR) if f.endswith('.json')], reverse=True)
+    out = []
+    for f in files[:40]:
+        r = _resumo_backup(os.path.join(BACKUP_DIR, f)); r["arquivo"] = f
+        out.append(r)
+    atual = _resumo_backup(DATA_FILE) if os.path.exists(DATA_FILE) else {}
+    atual["arquivo"] = "(ATUAL) tournament.json"
+    return jsonify({"atual": atual, "backups": out})
+
+@app.route('/api/backups/download/<path:filename>', methods=['GET'])
+@admin_required
+def download_backup(filename):
+    full = _safe_backup_path(filename)
+    if not full:
+        return jsonify({"error": "backup não encontrado"}), 404
+    return send_from_directory(BACKUP_DIR, os.path.basename(full), as_attachment=True)
+
+@app.route('/api/backups/restore', methods=['POST'])
+@admin_required
+def restore_backup():
+    """Restaura o arquivo vivo a partir de um backup. Antes, salva um snapshot rotulado
+    do estado atual em DATA_DIR (PRE_RESTORE_*) que NÃO entra na rotação dos 30.
+    O conteúdo do backup é lido pra memória ANTES de qualquer escrita, pra rotação
+    nunca apagar o arquivo-alvo no meio do caminho."""
+    body = request.json or {}
+    full = _safe_backup_path(body.get("filename"))
+    if not full:
+        return jsonify({"error": "backup inválido ou inexistente"}), 400
+    try:
+        with open(full, "r", encoding="utf-8") as f:
+            conteudo = f.read()
+        json.loads(conteudo)  # valida que é JSON íntegro antes de sobrescrever
+    except Exception as e:
+        return jsonify({"error": f"backup corrompido: {e}"}), 400
+    origem = os.path.basename(full)
+    with _DataLock(DATA_LOCK):
+        if os.path.exists(DATA_FILE):
+            ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+            shutil.copy2(DATA_FILE, os.path.join(DATA_DIR, f'PRE_RESTORE_{ts}.json'))
+        tmp = DATA_FILE + '.tmp'
+        with open(tmp, 'w', encoding='utf-8') as f:
+            f.write(conteudo)
+        os.replace(tmp, DATA_FILE)
+    return jsonify({"ok": True, "restaurado_de": origem, "resumo": _resumo_backup(DATA_FILE)})
+
 # --- RESET ---
 @app.route('/api/reset', methods=['POST'])
 @admin_required
