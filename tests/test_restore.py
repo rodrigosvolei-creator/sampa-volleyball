@@ -44,10 +44,16 @@ check(len(com_placar)>0, f"existe backup com placar pra restaurar ({len(com_plac
 melhor=com_placar[0]["arquivo"]  # mais recente com placar
 print(f"  -> melhor backup: {melhor} ({com_placar[0]['jogos_com_placar']} jogos com placar)")
 
-print("=== INCIDENTE: alguem clica 'Gerar Jogos' e zera tudo ===")
-c.post(f"/api/jogos/{T}/gerar")
+print("=== PROTECAO NOVA: 'Gerar Jogos' com placar agora e' BLOQUEADO (sem confirmar) ===")
+r=c.post(f"/api/jogos/{T}/gerar")
+check(r.status_code==409 and j(r).get("precisa_confirmar"), "gerar sem confirmar barrado (409 precisa_confirmar)")
+check(j(r).get("jogos_com_placar")==3, f"avisa 3 jogos com placar -- veio {j(r).get('jogos_com_placar')}")
+check(sum(x['pontos'] for x in j(c.get(f'/api/classificacao/{T}/A')))==pts_bom, "placares INTACTOS: gerar bloqueado nao apagou nada")
+
+print("=== INCIDENTE (o que aconteceu no E2): regeracao FORCADA zera tudo ===")
+c.post(f"/api/jogos/{T}/gerar", json={"forcar_regerar":True})
 rank_zerado=j(c.get(f"/api/classificacao/{T}/A"))
-check(sum(x["pontos"] for x in rank_zerado)==0, "classificacao ZERADA apos regerar (reproduz o bug)")
+check(sum(x["pontos"] for x in rank_zerado)==0, "classificacao ZERADA apos regerar forcado (reproduz o incidente)")
 insp2=j(c.get("/api/backups/inspect"))
 check(insp2["atual"]["jogos_com_placar"]==0, "estado atual agora tem 0 jogos com placar")
 # os times continuam (nao e' perda total)

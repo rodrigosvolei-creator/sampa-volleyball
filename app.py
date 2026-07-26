@@ -1608,15 +1608,39 @@ def get_jogos_admin(torneio_id):
     """Admin vê TODOS os jogos, incluindo is_test, pra poder operar o modo teste."""
     return jsonify(load_data()["jogos"].get(torneio_id, []))
 
+def _jogos_com_placar(jogos):
+    """Jogos reais (não teste) que já têm resultado lançado — regerar os apagaria."""
+    return [g for g in (jogos or []) if not g.get("is_test") and (
+        g.get("finalizado") or g.get("em_andamento")
+        or (g.get("sets_a", 0) or 0) + (g.get("sets_b", 0) or 0) > 0
+        or (g.get("parciais") or []))]
+
 @app.route('/api/jogos/<torneio_id>/gerar', methods=['POST'])
 @admin_required
 def gerar_jogos(torneio_id):
+    body = request.get_json(silent=True) or {}
+    forcar = bool(body.get("forcar_regerar"))
+    # PROTEÇÃO: regerar a tabela CRIA jogos novos zerados (ids uuid novos) e substitui os
+    # existentes — apaga TODOS os placares/classificação. Nunca fazer isso por cima de
+    # resultados já lançados sem confirmação explícita (checagem só-leitura, sem escrita).
+    if not forcar:
+        atuais = load_data()["jogos"].get(torneio_id, [])
+        com_placar = _jogos_com_placar(atuais)
+        if com_placar:
+            return jsonify({
+                "error": (f"Este torneio já tem {len(com_placar)} jogo(s) com placar lançado. "
+                          "Gerar a tabela de novo APAGA todos os placares e a classificação. "
+                          "Se é isso mesmo, confirme a regeração."),
+                "precisa_confirmar": True, "jogos_com_placar": len(com_placar)}), 409
     def _do(data):
         torneio = get_torneio(data, torneio_id) or {}
         fmt = torneio.get("formato_jogos", "grupos")
         hora_inicio = torneio.get("hora_inicio", "08:30")
         intervalo_min = int(torneio.get("intervalo_min", 75))
         grupos = data["grupos"].get(torneio_id, {"A": [], "B": []})
+        # Antes de destruir a tabela com placar (regeração forçada), guarda um backup.
+        if _jogos_com_placar(data["jogos"].get(torneio_id, [])):
+            do_backup()
         jogos = _build_jogos_from_grupos(grupos, fmt, is_test=False,
                                           hora_inicio=hora_inicio, intervalo_min=intervalo_min)
         # Preserva jogos de teste (is_test) que possam existir

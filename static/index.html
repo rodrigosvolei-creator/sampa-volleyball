@@ -1783,7 +1783,15 @@ if(r&&r.error){showToast(r.error);return}
 closeModal('scoreModal');showToast(fin?'Finalizado!':'Salvo');
 allJogos[currentTorneio]=await loadJogosForCurrentTorneio();renderJogos();
 }
-async function gerarJogos(){if(!confirm('Gerar jogos?'))return;allJogos[currentTorneio]=await api('/jogos/'+currentTorneio+'/gerar','POST');showToast('Gerados!');renderJogos()}
+async function gerarJogos(){
+  let res=await api('/jogos/'+currentTorneio+'/gerar','POST');
+  if(res&&res.precisa_confirmar){
+    if(!confirm('⚠ ATENÇÃO\n\nEste torneio já tem '+res.jogos_com_placar+' jogo(s) com PLACAR lançado.\n\nGerar a tabela de novo APAGA todos os placares e a classificação — não dá pra desfazer pela tela.\n\nTem CERTEZA que quer regerar e apagar os resultados?'))return;
+    res=await api('/jogos/'+currentTorneio+'/gerar','POST',{forcar_regerar:true});
+  }
+  if(!Array.isArray(res)){showToast((res&&res.error)||'Erro ao gerar tabela');return}
+  allJogos[currentTorneio]=res;showToast('Tabela gerada!');renderJogos();
+}
 
 // === CLASSIFICACAO ===
 async function renderClassificacao(){
